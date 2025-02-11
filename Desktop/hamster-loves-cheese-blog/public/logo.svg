@@ -1,0 +1,6 @@
+<svg width="250" height="80" viewBox="0 0 250 80" xmlns="http://www.w3.org/2000/svg">
+  <path d="M20 40 L230 40" stroke="#5D4037" stroke-width="2"/>
+  <path d="M20 50 L230 50" stroke="#5D4037" stroke-width="2"/>
+  <text x="25" y="45" font-family="Arial, sans-serif" font-size="24" fill="#5D4037">小倉鼠戀知識</text>
+</svg>
+

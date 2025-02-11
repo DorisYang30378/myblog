@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .mobile-toc\:text-base {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+  .mobile-toc\:text-2xl {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+}
+
+.mobile-toc {
+  --mobile-text-base: 1rem;
+  --mobile-text-2xl: 1.5rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.breadcrumb-link {
+  text-decoration: none;
+  color: #333333;
+  transition: color 0.2s;
+}
+
+.breadcrumb-link:hover {
+  color: #5C4033;
+}
+
+:is(.dark .breadcrumb-link) {
+  color: rgb(156 163 175);
+}
+
+:is(.dark .breadcrumb-link:hover) {
+  color: white;
+}
+

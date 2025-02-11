@@ -1,0 +1,40 @@
+name: Weekly Sitemap Update
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # 每週日午夜執行
+  workflow_dispatch:      # 允許手動觸發
+
+jobs:
+  update-sitemap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm install
+        
+      - name: Build and generate sitemap
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: |
+          npm run build
+          npm run postbuild
+          
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'actions@github.com'
+          git add public/sitemap*.xml public/robots.txt
+          git commit -m "Weekly sitemap update" || exit 0
+          git push
+          
+      - name: Ping Search Engines
+        run: |
+          curl -X GET "http://www.google.com/ping?sitemap=https://${{ secrets.SITE_URL }}/sitemap.xml"
+          curl -X GET "http://www.bing.com/ping?sitemap=https://${{ secrets.SITE_URL }}/sitemap.xml" 

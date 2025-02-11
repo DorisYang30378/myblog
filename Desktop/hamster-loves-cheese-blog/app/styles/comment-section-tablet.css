@@ -1,0 +1,55 @@
+@media (min-width: 768px) and (max-width: 1279px) {
+  .comment-section-tablet {
+    /* 1. "留言"標題 */
+    & h2 {
+      font-size: 2.25rem; /* 放大約20% */
+      font-weight: 700; /* 加強字重 */
+      margin: 1.5rem 0; /* 增加上下間距 */
+    }
+
+    /* 2. 用戶資訊區 */
+    & .avatar {
+      width: 3.6rem; /* 放大約20% */
+      height: 3.6rem;
+    }
+
+    & h3 {
+      font-size: 1.15rem; /* 放大15% */
+    }
+
+    & .text-gray-500 {
+      font-size: 1.1rem; /* 放大10% */
+    }
+
+    /* 3. 留言內容 */
+    & .prose {
+      font-size: 1.15rem; /* 放大15-20% */
+      line-height: 1.7; /* 適當增加行距 */
+    }
+
+    /* 4. 互動元素 */
+    & button {
+      font-size: 1.15rem; /* 放大約15% */
+    }
+
+    & .lucide {
+      width: 1.5rem; /* 放大約20% */
+      height: 1.5rem;
+    }
+
+    & .emoji {
+      font-size: 1.5rem; /* 確保表情符號清晰可見 */
+    }
+
+    /* 5. 整體佈局 */
+    & > div {
+      margin-bottom: 2rem; /* 增加各區塊間的留白 */
+    }
+
+    & button,
+    & a {
+      padding: 0.75rem; /* 確保點擊區域足夠大 */
+    }
+  }
+}
+
