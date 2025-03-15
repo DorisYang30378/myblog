@@ -1,0 +1,136 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                Int       @id @default(autoincrement())
+  name              String?
+  email             String    @unique
+  emailVerified     DateTime?
+  image             String?
+  password          String?
+  resetPasswordToken String?
+  accounts          Account[]
+  sessions          Session[]
+  avatar            String?    @db.LongText
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  comments          Comment[]    @relation("UserComments")
+  likes             Like[]       @relation("UserLikes")
+  bookmarks         Bookmark[]   @relation("UserBookmarks")
+  isAdmin           Boolean     @default(false)
+  commentLikes      CommentLike[] @relation("UserCommentLikes")
+}
+
+model Article {
+  id          Int         @id @default(autoincrement())
+  title       String      
+  content     String      @db.Text  
+  images      String?     @db.Text  
+  category    Category    @relation(fields: [categoryId], references: [id])
+  categoryId  Int      
+  createdAt   DateTime    @default(now())  
+  updatedAt   DateTime    @updatedAt  
+  likes       Like[]      
+  comments    Comment[]   
+  bookmarks   Bookmark[]  
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  slug      String    @unique
+  articles  Article[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Like {
+  id        Int       @id @default(autoincrement())
+  article   Article   @relation(fields: [articleId], references: [id])
+  articleId Int
+  user      User      @relation("UserLikes", fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  createdAt DateTime  @default(now())  
+
+  @@unique([articleId, userId])  
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement())
+  content   String    
+  article   Article   @relation(fields: [articleId], references: [id])
+  articleId Int
+  user      User      @relation("UserComments", fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  createdAt DateTime  @default(now())
+  
+  // 添加父子評論關係
+  parentId  Int?      
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  
+  // 添加評論按讚關係
+  likes     CommentLike[]
+}
+
+model Bookmark {
+  id        Int       @id @default(autoincrement())
+  article   Article   @relation(fields: [articleId], references: [id])
+  articleId Int
+  user      User      @relation("UserBookmarks", fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  createdAt DateTime  @default(now())  
+
+  @@unique([articleId, userId])  
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 新增評論按讚模型
+model CommentLike {
+  id        Int      @id @default(autoincrement())
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId Int
+  user      User     @relation("UserCommentLikes", fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, userId])
+}
