@@ -6,16 +6,27 @@ import { authOptions } from "@/lib/auth"
 // 檢查按讚狀態
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { slug: string } }
 ) {
   try {
+    // 先通過 slug 獲取文章
+    const article = await prisma.article.findFirst({
+      where: { slug: params.slug }
+    })
+
+    if (!article) {
+      return NextResponse.json(
+        { error: "文章不存在" },
+        { status: 404 }
+      )
+    }
+
     const session = await getServerSession(authOptions)
-    const articleId = parseInt(params.id)
 
     // 獲取總按讚數
     const totalLikes = await prisma.like.count({
       where: {
-        articleId: articleId
+        articleId: article.id
       }
     })
 
@@ -28,7 +39,7 @@ export async function GET(
     const like = await prisma.like.findFirst({
       where: {
         userId: session.user.id,
-        articleId: articleId
+        articleId: article.id
       }
     })
 
@@ -45,16 +56,28 @@ export async function GET(
 // 切換按讚狀態
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { slug: string } }
 ) {
   try {
+    // 先通過 slug 獲取文章
+    const article = await prisma.article.findFirst({
+      where: { slug: params.slug }
+    })
+
+    if (!article) {
+      return NextResponse.json(
+        { error: "文章不存在" },
+        { status: 404 }
+      )
+    }
+
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return new NextResponse("Unauthorized", { status: 401 })
     }
 
     const userId = session.user.id
-    const articleId = parseInt(params.id)
+    const articleId = article.id
 
     // 檢查是否已經按讚
     const existingLike = await prisma.like.findFirst({

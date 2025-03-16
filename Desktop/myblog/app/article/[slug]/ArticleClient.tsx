@@ -45,7 +45,9 @@ interface Article {
 }
 
 interface ArticleClientProps {
-  params: { id: string }
+  params: {
+    slug: string;
+  };
 }
 
 const RelatedArticles = () => {
@@ -59,16 +61,17 @@ const RelatedArticles = () => {
     excerpt: string;
     likes: number;
     comments: number;
+    slug?: string;
   }>>([])
 
   useEffect(() => {
-    const currentArticleId = window.location.pathname.split('/article/').pop()
+    const currentArticleSlug = window.location.pathname.split('/article/').pop()
     
-    if (!currentArticleId) return
+    if (!currentArticleSlug) return
     
-    console.log('Fetching related articles for ID:', currentArticleId)
+    console.log('Fetching related articles for slug:', currentArticleSlug)
     
-    fetch(`/api/articles/${currentArticleId}/related`)
+    fetch(`/api/articles/${currentArticleSlug}/related`)
       .then(res => {
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`)
@@ -207,7 +210,7 @@ const RelatedArticles = () => {
                 scrollSnapAlign: "start",
               }}
             >
-              <Link href={`/article/${article.id}`} className="block h-full">
+              <Link href={`/article/${article.slug || article.id}`} className="block h-full">
                 <Card className="h-full hover:shadow-lg transition-shadow duration-200 dark:bg-gray-700">
                   <CardContent className="p-5">
                     <div className="space-y-2">
@@ -242,13 +245,13 @@ const RelatedArticles = () => {
 }
 
 const ArticleActions = ({ 
-  articleId,
+  articleSlug,
   totalComments,
   totalLikes: initialTotalLikes,
   onCommentClick,
   className = ""
 }: { 
-  articleId: number
+  articleSlug: string
   totalComments: number
   totalLikes: number
   onCommentClick: () => void
@@ -274,8 +277,8 @@ const ArticleActions = ({
   const handleLike = async () => {
     console.log('按讚按鈕被點擊')
     try {
-      console.log('開始發送按讚請求，articleId:', articleId)
-      const response = await fetch(`/api/articles/${articleId}/like`, {
+      console.log('開始發送按讚請求，articleSlug:', articleSlug)
+      const response = await fetch(`/api/articles/${articleSlug}/like`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -300,7 +303,7 @@ const ArticleActions = ({
 
   const handleBookmark = async () => {
     try {
-      const response = await fetch(`/api/articles/${articleId}/bookmark`, {
+      const response = await fetch(`/api/articles/${articleSlug}/bookmark`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -344,7 +347,7 @@ const ArticleActions = ({
       if (!session) return
       
       try {
-        const response = await fetch(`/api/articles/${articleId}/bookmark`)
+        const response = await fetch(`/api/articles/${articleSlug}/bookmark`)
         if (response.ok) {
           const data = await response.json()
           setIsBookmarked(data.bookmarked)
@@ -355,7 +358,7 @@ const ArticleActions = ({
     }
 
     checkBookmarkStatus()
-  }, [articleId, session])
+  }, [articleSlug, session])
 
   // 檢查按讚狀態
   useEffect(() => {
@@ -363,7 +366,7 @@ const ArticleActions = ({
       if (!session) return
       
       try {
-        const response = await fetch(`/api/articles/${articleId}/like`)
+        const response = await fetch(`/api/articles/${articleSlug}/like`)
         if (response.ok) {
           const { liked, totalLikes: newTotalLikes } = await response.json()
           setIsLiked(liked)
@@ -375,7 +378,7 @@ const ArticleActions = ({
     }
 
     checkLikeStatus()
-  }, [articleId, session])
+  }, [articleSlug, session])
 
   return (
     <>
@@ -464,14 +467,19 @@ export default function ArticleClient({ params }: ArticleClientProps) {
   const [isCommentDialogOpen, setIsCommentDialogOpen] = useState(false)
   const [commentCount, setCommentCount] = useState(0)
   const [hideImageCaptions, setHideImageCaptions] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const fetchArticle = async () => {
       try {
-        // 獲取文章基本信息
-        const response = await fetch(`/api/articles/${params.id}`)
+        setIsLoading(true)
+        const response = await fetch(`/api/articles/${params.slug}`)
+        
+        if (!response.ok) {
+          throw new Error('文章獲取失敗')
+        }
+        
         const data = await response.json()
-
         // 檢查是否有隱藏圖片說明的標記
         const hasHideImageCaptionsTag = data.content.includes('<!-- HIDE_IMAGE_CAPTIONS -->');
         
@@ -484,11 +492,11 @@ export default function ArticleClient({ params }: ArticleClientProps) {
         }
 
         // 獲取按讚狀態和總數
-        const likeResponse = await fetch(`/api/articles/${params.id}/like`)
+        const likeResponse = await fetch(`/api/articles/${params.slug}/like`)
         const { liked, totalLikes } = await likeResponse.json()
         
         // 獲取收藏狀態
-        const bookmarkResponse = await fetch(`/api/articles/${params.id}/bookmark`)
+        const bookmarkResponse = await fetch(`/api/articles/${params.slug}/bookmark`)
         const { bookmarked } = await bookmarkResponse.json()
         
         // 整合所有數據
@@ -512,11 +520,13 @@ export default function ArticleClient({ params }: ArticleClientProps) {
         })
       } catch (error) {
         console.error('獲取文章失敗:', error)
+      } finally {
+        setIsLoading(false)
       }
     }
-
+    
     fetchArticle()
-  }, [params.id])
+  }, [params.slug])
 
   // 添加檢查收藏狀態的 useEffect
   useEffect(() => {
@@ -524,7 +534,7 @@ export default function ArticleClient({ params }: ArticleClientProps) {
       if (!session) return
       
       try {
-        const response = await fetch(`/api/articles/${article?.id}/bookmark`)
+        const response = await fetch(`/api/articles/${params.slug}/bookmark`)
         if (response.ok) {
           const data = await response.json()
           setIsBookmarked(data.bookmarked)
@@ -537,7 +547,7 @@ export default function ArticleClient({ params }: ArticleClientProps) {
     if (article) {
       checkBookmarkStatus()
     }
-  }, [article?.id, session])
+  }, [params.slug, session])
 
   const handleCommentClick = () => {
     if (!session) {
@@ -547,8 +557,12 @@ export default function ArticleClient({ params }: ArticleClientProps) {
     setIsCommentDialogOpen(!isCommentDialogOpen)
   }
 
-  if (!article) {
+  if (isLoading) {
     return <Loading />
+  }
+  
+  if (!article) {
+    return <div>找不到文章</div>
   }
 
   const ArticleTOC = ({
@@ -757,7 +771,7 @@ export default function ArticleClient({ params }: ArticleClientProps) {
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl md:text-[28px] font-bold text-[#5C4033] dark:text-white">留言</h2>
                   <ArticleActions 
-                    articleId={article.id}
+                    articleSlug={params.slug}
                     totalComments={article.comments ?? 0}
                     totalLikes={article._count?.likes ?? 0}
                     onCommentClick={handleCommentClick}
@@ -849,7 +863,7 @@ export default function ArticleClient({ params }: ArticleClientProps) {
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl md:text-[28px] font-bold text-[#5C4033] dark:text-white">留言</h2>
                     <ArticleActions 
-                      articleId={article.id}
+                      articleSlug={params.slug}
                       totalComments={article.comments ?? 0}
                       totalLikes={article._count?.likes ?? 0}
                       onCommentClick={handleCommentClick}

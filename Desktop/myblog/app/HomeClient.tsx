@@ -30,6 +30,7 @@ interface Article {
   comments?: number
   isBookmarked?: boolean
   isLiked?: boolean
+  slug: string
 }
 
 interface ArticleImage {
@@ -85,7 +86,8 @@ const fetchArticle = async (id: string, setImages: (images: UploadedImage[]) => 
       title: data.title,
       category: data.category?.name || "",
       content: data.content,
-      images: imageArray
+      images: imageArray,
+      slug: data.slug
     }
   } catch (error) {
     console.error('Error fetching article:', error)
@@ -115,56 +117,94 @@ export default function HomeClient() {
   useEffect(() => {
     const fetchArticles = async () => {
       try {
-        // 獲取文章列表
-        const articlesResponse = await fetch('/api/articles')
-        const articlesData = await articlesResponse.json()
+        console.log('開始獲取文章列表')
+        
+        // 直接從 API 獲取文章列表
+        const response = await fetch('/api/articles')
+        console.log('文章 API 響應狀態:', response.status)
+        
+        if (!response.ok) {
+          console.error('獲取文章列表失敗:', response.statusText)
+          setArticles([])
+          return
+        }
+        
+        const articlesData = await response.json()
+        console.log('獲取到的文章數據:', articlesData)
+        
+        if (!articlesData || articlesData.length === 0) {
+          console.log('沒有找到文章')
+          setArticles([])
+          return
+        }
 
         // 獲取每篇文章的收藏、按讚和評論狀態
         const articlesWithStatus = await Promise.all(
           articlesData.map(async (article: Article) => {
-            // 獲取收藏狀態
-            const bookmarkResponse = await fetch(`/api/articles/${article.id}/bookmark`)
-            const { bookmarked } = await bookmarkResponse.json()
-            
-            // 獲取按讚狀態
-            const likeResponse = await fetch(`/api/articles/${article.id}/like`)
-            const { liked, totalLikes } = await likeResponse.json()
-            
-            // 獲取評論數
-            const commentsResponse = await fetch(`/api/comments/${article.id}`)
-            const comments = await commentsResponse.json()
-            const commentCount = comments.reduce((acc: number, comment: any) => 
-              acc + 1 + (comment.replies?.length || 0), 0)
-            
-            return {
-              ...article,
-              isBookmarked: bookmarked,
-              isLiked: liked,
-              likes: totalLikes || 0,
-              comments: commentCount
+            try {
+              // 獲取收藏狀態
+              const bookmarkResponse = await fetch(`/api/articles/${article.slug}/bookmark`)
+              const bookmarkData = await bookmarkResponse.json()
+              const bookmarked = bookmarkData.bookmarked || false
+              
+              // 獲取按讚狀態
+              const likeResponse = await fetch(`/api/articles/${article.slug}/like`)
+              const likeData = await likeResponse.json()
+              const liked = likeData.liked || false
+              const totalLikes = likeData.totalLikes || 0
+              
+              // 獲取評論數 - 使用 article.id 而不是 slug
+              let commentCount = 0
+              try {
+                // 修改這裡：使用 article.id 而不是 article.slug
+                const commentsResponse = await fetch(`/api/comments/${article.id}`)
+                if (commentsResponse.ok) {
+                  const comments = await commentsResponse.json()
+                  // 添加錯誤處理，確保 comments 是數組
+                  if (Array.isArray(comments)) {
+                    commentCount = comments.reduce((acc, comment) => 
+                      acc + 1 + (comment.replies?.length || 0), 0)
+                  } else {
+                    console.log(`文章 ${article.id} 的評論不是數組:`, comments)
+                    commentCount = 0
+                  }
+                }
+              } catch (commentError) {
+                console.error(`獲取文章 ${article.id} 的評論失敗:`, commentError)
+              }
+              
+              return {
+                ...article,
+                isBookmarked: bookmarked,
+                isLiked: liked,
+                likes: totalLikes,
+                comments: commentCount
+              }
+            } catch (articleError) {
+              console.error(`處理文章 ${article.id} 時出錯:`, articleError)
+              return article // 返回原始文章，不帶額外狀態
             }
           })
         )
 
+        console.log('處理後的文章:', articlesWithStatus)
         setArticles(articlesWithStatus)
       } catch (error) {
-        console.error('Error fetching articles:', error)
+        console.error('獲取文章列表失敗:', error)
+        setArticles([]) // 設置為空數組，避免 undefined
       }
     }
 
     fetchArticles()
   }, [])
 
-  const handleAction = async (e: React.MouseEvent, action: string, articleId: number) => {
+  const handleAction = async (e: React.MouseEvent, action: string, article: Article) => {
     e.preventDefault()
     e.stopPropagation()
 
     // 如果是分享功能，不需要登入驗證
     if (action === "share") {
-      const article = articles.find(a => a.id === articleId)
-      if (!article) return
-
-      const url = `${window.location.origin}/article/${articleId}`
+      const url = `${window.location.origin}/article/${article.slug}`
       
       if (navigator.share) {
         try {
@@ -197,7 +237,7 @@ export default function HomeClient() {
 
     if (action === "like") {
       try {
-        const response = await fetch(`/api/articles/${articleId}/like`, {
+        const response = await fetch(`/api/articles/${article.slug}/like`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -212,7 +252,7 @@ export default function HomeClient() {
         
         // 更新文章列表中的按讚狀態和數量
         setArticles(articles.map(article => 
-          article.id === articleId 
+          article.id === article.id 
             ? { 
                 ...article, 
                 likes: liked ? (article.likes || 0) + 1 : (article.likes || 0) - 1,
@@ -226,7 +266,7 @@ export default function HomeClient() {
     }
     if (action === "bookmark") {
       try {
-        const response = await fetch(`/api/articles/${articleId}/bookmark`, {
+        const response = await fetch(`/api/articles/${article.slug}/bookmark`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -241,7 +281,7 @@ export default function HomeClient() {
         
         // 更新文章列表中的收藏狀態
         setArticles(articles.map(article => 
-          article.id === articleId 
+          article.id === article.id 
             ? { 
                 ...article, 
                 isBookmarked: bookmarked
@@ -286,7 +326,7 @@ export default function HomeClient() {
         </h1>
         <section className="max-w-3xl mx-auto">
           {articles.map((article) => (
-            <Link href={`/article/${article.id}`} key={article.id}>
+            <Link href={`/article/${article.slug}`} key={article.id}>
               <Card className="bg-[#FDFBF7] dark:bg-gray-800 hover:shadow-[0_2px_8px_rgba(139,110,78,0.1)] transition-all duration-300 ease-in-out hover:-translate-y-0.5 h-auto mb-4">
                 <CardContent className="p-2 sm:p-3 md:p-4 flex flex-col h-full">
                   <div className="flex items-start pr-2 pl-3 flex-grow">
@@ -355,7 +395,7 @@ export default function HomeClient() {
                   </div>
                   <div className="flex items-center gap-3 mt-1 mb-1 pl-3 pr-2 text-[#8B7355] dark:text-gray-400">
                     <button
-                      onClick={(e) => handleAction(e, "like", article.id)}
+                      onClick={(e) => handleAction(e, "like", article)}
                       className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                     >
                       <Heart 
@@ -368,7 +408,7 @@ export default function HomeClient() {
                       </span>
                     </button>
                     <button
-                      onClick={(e) => handleAction(e, "comment", article.id)}
+                      onClick={(e) => handleAction(e, "comment", article)}
                       className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                     >
                       <MessageCircle className="sm:w-5 sm:h-5 w-4 h-4 transition-transform group-hover:scale-110" />
@@ -377,7 +417,7 @@ export default function HomeClient() {
                       </span>
                     </button>
                     <button
-                      onClick={(e) => handleAction(e, "bookmark", article.id)}
+                      onClick={(e) => handleAction(e, "bookmark", article)}
                       className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                     >
                       <Bookmark 
@@ -387,7 +427,7 @@ export default function HomeClient() {
                       />
                     </button>
                     <button
-                      onClick={(e) => handleAction(e, "share", article.id)}
+                      onClick={(e) => handleAction(e, "share", article)}
                       className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                     >
                       <Share2 className="sm:w-5 sm:h-5 w-4 h-4 transition-transform group-hover:scale-110" />

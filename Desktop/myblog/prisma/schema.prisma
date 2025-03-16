@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,86 +8,91 @@ datasource db {
 }
 
 model User {
-  id                Int       @id @default(autoincrement())
-  name              String?
-  email             String    @unique
-  emailVerified     DateTime?
-  image             String?
-  password          String?
+  id                 Int           @id @default(autoincrement())
+  name               String?
+  email              String        @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
   resetPasswordToken String?
-  accounts          Account[]
-  sessions          Session[]
-  avatar            String?    @db.LongText
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  comments          Comment[]    @relation("UserComments")
-  likes             Like[]       @relation("UserLikes")
-  bookmarks         Bookmark[]   @relation("UserBookmarks")
-  isAdmin           Boolean     @default(false)
-  commentLikes      CommentLike[] @relation("UserCommentLikes")
+  avatar             String?       @db.LongText
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  isAdmin            Boolean       @default(false)
+  accounts           Account[]
+  bookmarks          Bookmark[]    @relation("UserBookmarks")
+  comments           Comment[]     @relation("UserComments")
+  commentLikes       CommentLike[] @relation("UserCommentLikes")
+  likes              Like[]        @relation("UserLikes")
+  sessions           Session[]
 }
 
 model Article {
-  id          Int         @id @default(autoincrement())
-  title       String      
-  content     String      @db.Text  
-  images      String?     @db.Text  
-  category    Category    @relation(fields: [categoryId], references: [id])
-  categoryId  Int      
-  createdAt   DateTime    @default(now())  
-  updatedAt   DateTime    @updatedAt  
-  likes       Like[]      
-  comments    Comment[]   
-  bookmarks   Bookmark[]  
+  id         Int        @id @default(autoincrement())
+  title      String
+  content    String     @db.Text
+  images     String?    @db.Text
+  categoryId Int
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  slug       String
+  category   Category   @relation(fields: [categoryId], references: [id])
+  bookmarks  Bookmark[]
+  comments   Comment[]
+  likes      Like[]
+
+  @@index([categoryId], map: "Article_categoryId_fkey")
 }
 
 model Category {
   id        Int       @id @default(autoincrement())
   name      String    @unique
   slug      String    @unique
-  articles  Article[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  articles  Article[]
 }
 
 model Like {
-  id        Int       @id @default(autoincrement())
-  article   Article   @relation(fields: [articleId], references: [id])
+  id        Int      @id @default(autoincrement())
   articleId Int
-  user      User      @relation("UserLikes", fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
-  createdAt DateTime  @default(now())  
+  createdAt DateTime @default(now())
+  article   Article  @relation(fields: [articleId], references: [id])
+  user      User     @relation("UserLikes", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([articleId, userId])  
+  @@unique([articleId, userId])
+  @@index([userId], map: "Like_userId_fkey")
 }
 
 model Comment {
-  id        Int       @id @default(autoincrement())
-  content   String    
-  article   Article   @relation(fields: [articleId], references: [id])
+  id        Int           @id @default(autoincrement())
+  content   String
   articleId Int
-  user      User      @relation("UserComments", fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
-  createdAt DateTime  @default(now())
-  
-  // 添加父子評論關係
-  parentId  Int?      
-  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   Comment[] @relation("CommentReplies")
-  
-  // 添加評論按讚關係
+  createdAt DateTime      @default(now())
+  parentId  Int?
+  article   Article       @relation(fields: [articleId], references: [id])
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
+  user      User          @relation("UserComments", fields: [userId], references: [id], onDelete: Cascade)
   likes     CommentLike[]
+
+  @@index([articleId], map: "Comment_articleId_fkey")
+  @@index([parentId], map: "Comment_parentId_fkey")
+  @@index([userId], map: "Comment_userId_fkey")
 }
 
 model Bookmark {
-  id        Int       @id @default(autoincrement())
-  article   Article   @relation(fields: [articleId], references: [id])
+  id        Int      @id @default(autoincrement())
   articleId Int
-  user      User      @relation("UserBookmarks", fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
-  createdAt DateTime  @default(now())  
+  createdAt DateTime @default(now())
+  article   Article  @relation(fields: [articleId], references: [id])
+  user      User     @relation("UserBookmarks", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([articleId, userId])  
+  @@unique([articleId, userId])
+  @@index([userId], map: "Bookmark_userId_fkey")
 }
 
 model Account {
@@ -109,10 +108,10 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId], map: "Account_userId_fkey")
 }
 
 model Session {
@@ -121,16 +120,18 @@ model Session {
   userId       Int
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "Session_userId_fkey")
 }
 
-// 新增評論按讚模型
 model CommentLike {
   id        Int      @id @default(autoincrement())
-  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
   commentId Int
-  user      User     @relation("UserCommentLikes", fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
   createdAt DateTime @default(now())
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserCommentLikes", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([commentId, userId])
+  @@index([userId], map: "CommentLike_userId_fkey")
 }

@@ -38,6 +38,7 @@ interface Category {
 
 export default function UploadPage() {
   const [title, setTitle] = useState("")
+  const [slug, setSlug] = useState("")
   const [category, setCategory] = useState("")
   const [content, setContent] = useState("")
   const [images, setImages] = useState<UploadedImage[]>([])
@@ -224,7 +225,8 @@ export default function UploadPage() {
           title: title.trim(),
           content: finalContent,
           category,
-          images: uploadedImages
+          images: uploadedImages,
+          slug: slug.trim() || generateSlug(title.trim())
         })
       })
 
@@ -240,7 +242,7 @@ export default function UploadPage() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [title, content, category, images, isSubmitting, hideImageCaptions])
+  }, [title, content, category, images, slug, isSubmitting, hideImageCaptions])
 
   const togglePreviewMode = () => {
     setIsPreviewMode(!isPreviewMode)
@@ -385,21 +387,58 @@ export default function UploadPage() {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
 
+  // 添加生成 slug 的辅助函数
+  const generateSlug = (title: string) => {
+    return title
+      .toLowerCase()
+      .replace(/[^\w\u4e00-\u9fa5]+/g, '-') // 保留中文字符和英文字母数字
+      .replace(/^-+|-+$/g, '') // 移除首尾的连字符
+      .substring(0, 80); // 限制长度
+  };
+
   return (
     <PageLayout title="上傳文章" className="bg-[#FAF3E8]">
       <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
+          <div className="mb-4">
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              文章標題
+              文章標題 *
             </label>
-            <Input
+            <input
               id="title"
+              type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                // 当标题改变且 slug 为空时，自动生成 slug
+                if (!slug) {
+                  setSlug(generateSlug(e.target.value));
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary dark:bg-gray-800 dark:border-gray-600"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary"
             />
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="slug" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              文章網址 *
+            </label>
+            <div className="flex items-center">
+              <span className="text-gray-500 dark:text-gray-400 mr-1">/article/</span>
+              <input
+                id="slug"
+                type="text"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^\w\u4e00-\u9fa5-]/g, '-'))}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary dark:bg-gray-800 dark:border-gray-600"
+                placeholder="my-article-title"
+                required
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+              自定義網址，只能包含小寫字母、數字、中文和連字符
+            </p>
           </div>
 
           <div>

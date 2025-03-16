@@ -23,10 +23,10 @@ interface UploadedImage {
 }
 
 // 修改 fetchArticle 函數來從 API 獲取實際文章數據
-const fetchArticle = async (id: string, setImages: (images: UploadedImage[]) => void) => {
+const fetchArticle = async (slug: string, setImages: (images: UploadedImage[]) => void) => {
   try {
-    console.log('開始獲取文章, ID:', id)
-    const response = await fetch(`/api/articles/${id}`)
+    console.log('開始獲取文章, slug:', slug)
+    const response = await fetch(`/api/articles/${slug}`)
     
     if (!response.ok) {
       throw new Error(`獲取文章失敗: ${response.status} ${response.statusText}`)
@@ -70,7 +70,8 @@ const fetchArticle = async (id: string, setImages: (images: UploadedImage[]) => 
       category: data.category?.name || '',
       content: cleanContent,
       images: processedImages,
-      hideImageCaptions: hasHideImageCaptionsTag
+      hideImageCaptions: hasHideImageCaptionsTag,
+      slug: data.slug || ''
     }
   } catch (error) {
     console.error('獲取文章失敗:', error)
@@ -172,7 +173,7 @@ const MarkdownRenderer = ({ content, images, hideImageCaptions }: {
   )
 }
 
-export default function EditArticle({ params }: { params: { id: string } }) {
+export default function EditArticle({ params }: { params: { slug: string } }) {
   const router = useRouter()
   const { user } = useUser()
   const [article, setArticle] = useState<{
@@ -182,7 +183,8 @@ export default function EditArticle({ params }: { params: { id: string } }) {
     content: string;
     images: UploadedImage[];
     hideImageCaptions: boolean;
-  }>({ id: 0, title: "", category: "", content: "", images: [], hideImageCaptions: false })
+    slug: string;
+  }>({ id: 0, title: "", category: "", content: "", images: [], hideImageCaptions: false, slug: "" })
   const [isLoading, setIsLoading] = useState(true)  // 添加載入狀態
   const [isPreviewMode, setIsPreviewMode] = useState(false)
   const [isNewCategoryDialogOpen, setIsNewCategoryDialogOpen] = useState(false)
@@ -193,6 +195,8 @@ export default function EditArticle({ params }: { params: { id: string } }) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [hideImageCaptions, setHideImageCaptions] = useState(false)
+  const [title, setTitle] = useState("")
+  const [slug, setSlug] = useState("")  // 添加 slug 状态
 
   // 修改資料獲取邏輯
   useEffect(() => {
@@ -206,11 +210,11 @@ export default function EditArticle({ params }: { params: { id: string } }) {
 
       try {
         setIsLoading(true)
-        console.log('開始獲取文章數據, ID:', params.id)
+        console.log('開始獲取文章數據, slug:', params.slug)
 
         // 並行獲取文章和分類數據
         const [articleData, categoriesData] = await Promise.all([
-          fetchArticle(params.id, setImages),
+          fetchArticle(params.slug, setImages),
           fetchCategories()
         ])
 
@@ -220,6 +224,8 @@ export default function EditArticle({ params }: { params: { id: string } }) {
           console.log('獲取到文章數據:', articleData)
           setArticle(articleData)
           setHideImageCaptions(articleData.hideImageCaptions)
+          setTitle(articleData.title)
+          setSlug(articleData.slug)
         } else {
           console.error('無法獲取文章數據')
         }
@@ -243,7 +249,7 @@ export default function EditArticle({ params }: { params: { id: string } }) {
     return () => {
       isMounted = false
     }
-  }, [params.id, user]) // 移除 router 依賴
+  }, [params.slug, user]) // 移除 router 依賴
 
   // 添加載入中狀態的顯示
   if (isLoading) {
@@ -320,17 +326,18 @@ export default function EditArticle({ params }: { params: { id: string } }) {
       }
 
       // 更新文章
-      const response = await fetch(`/api/articles/${article.id}`, {
+      const response = await fetch(`/api/articles/${params.slug}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: article.title,
+          title: title.trim(),
           content: finalContent,
           categoryName: article.category,
           images: uploadedImages,
-          hideImageCaptions: hideImageCaptions
+          hideImageCaptions: hideImageCaptions,
+          slug: slug.trim()
         }),
       })
 
@@ -433,22 +440,60 @@ export default function EditArticle({ params }: { params: { id: string } }) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
 
+  // 添加生成 slug 的辅助函数
+  const generateSlug = (title: string) => {
+    return title
+      .toLowerCase()
+      .replace(/[^\w\u4e00-\u9fa5]+/g, '-') // 保留中文字符和英文字母数字
+      .replace(/^-+|-+$/g, '') // 移除首尾的连字符
+      .substring(0, 80); // 限制长度
+  };
+
   if (!user) return null
 
   return (
     <PageLayout title="編輯文章" className="bg-[#F7F3E8] dark:bg-gray-900">
       <div className="max-w-4xl mx-auto px-16">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          <div className="mb-4">
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              文章標題
+              文章標題 *
             </label>
-            <Input
+            <input
               id="title"
-              value={article.title}
-              onChange={(e) => setArticle({ ...article, title: e.target.value })}
-              className="w-full bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700"
+              type="text"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                // 如果 slug 为空，自动生成
+                if (!slug) {
+                  setSlug(generateSlug(e.target.value));
+                }
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary dark:bg-gray-800 dark:border-gray-600"
+              required
             />
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="slug" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              文章網址 *
+            </label>
+            <div className="flex items-center">
+              <span className="text-gray-500 dark:text-gray-400 mr-1">/article/</span>
+              <input
+                id="slug"
+                type="text"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^\w\u4e00-\u9fa5-]/g, '-'))}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary dark:bg-gray-800 dark:border-gray-600"
+                placeholder="my-article-title"
+                required
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+              自定義網址，只能包含小寫字母、數字、中文和連字符
+            </p>
           </div>
 
           <div>

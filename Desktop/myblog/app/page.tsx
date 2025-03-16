@@ -1,5 +1,6 @@
 import HomeClient from './HomeClient'
 import { Metadata } from 'next'
+import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: '首頁 - 小倉鼠戀知識 ',

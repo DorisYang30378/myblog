@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 export async function GET() {
   const articles = await prisma.article.findMany({
     select: {
-      id: true,
+      slug: true,
       updatedAt: true,
       category: {
         select: { name: true }
@@ -21,7 +21,7 @@ export async function GET() {
       </url>
       ${articles.map(article => `
         <url>
-          <loc>https://curioushammy.com/article/${article.id}</loc>
+          <loc>https://curioushammy.com/article/${article.slug}</loc>
           <lastmod>${article.updatedAt.toISOString()}</lastmod>
           <changefreq>weekly</changefreq>
           <priority>0.8</priority>

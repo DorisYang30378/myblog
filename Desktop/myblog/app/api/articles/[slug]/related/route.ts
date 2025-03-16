@@ -3,29 +3,30 @@ import prisma from '@/lib/prisma'
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { slug: string } }
 ) {
   try {
-    const articleId = Number(params.id);
-    const MAX_ARTICLES = 15; // 最多顯示的文章數
-    
-    // 獲取當前文章的信息，包括創建時間
-    const currentArticle = await prisma.article.findUnique({
-      where: { id: articleId },
+    // 先通過 slug 獲取文章 ID
+    const article = await prisma.article.findFirst({
+      where: { slug: params.slug },
       select: { 
+        id: true,
         createdAt: true,
         categoryId: true
       }
     });
     
-    if (!currentArticle) {
+    if (!article) {
       return NextResponse.json({ error: '文章不存在' }, { status: 404 })
     }
+    
+    const articleId = article.id;
+    const MAX_ARTICLES = 15; // 最多顯示的文章數
     
     // 獲取所有文章的 ID 和創建時間，按創建時間排序
     const allArticles = await prisma.article.findMany({
       where: {       
-        categoryId: currentArticle.categoryId // 保持相同分類
+        categoryId: article.categoryId // 保持相同分類
       },
       select: {
         id: true,
@@ -81,6 +82,7 @@ export async function GET(
         id: true,
         title: true,
         content: true,
+        slug: true,
         createdAt: true,
         _count: {
           select: {
@@ -98,6 +100,7 @@ export async function GET(
     const formattedArticles = contextArticles.map(article => ({
       id: article.id,
       title: article.title,
+      slug: article.slug,
       excerpt: article.content.slice(0, 100).replace(/[#*`]/g, '') + '...',
       likes: article._count.likes,
       comments: article._count.comments,

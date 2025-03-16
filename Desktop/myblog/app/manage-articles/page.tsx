@@ -17,6 +17,7 @@ interface Article {
   category: {
     name: string
   }
+  slug: string | null
 }
 
 export default function ManageArticles() {
@@ -24,6 +25,7 @@ export default function ManageArticles() {
   const { user } = useUser()
   const [articles, setArticles] = useState<Article[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [editingSlug, setEditingSlug] = useState<{id: number, slug: string | null} | null>(null)
 
   // 獲取文章列表
   useEffect(() => {
@@ -51,17 +53,17 @@ export default function ManageArticles() {
     return null
   }
 
-  const handleEdit = (id: number) => {
-    router.push(`/edit-article/${id}`)
+  const handleEdit = (article: Article) => {
+    router.push(`/edit-article/${article.slug}`);
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (article: Article) => {
     if (!window.confirm('確定要刪除這篇文章嗎？')) {
       return
     }
 
     try {
-      const response = await fetch(`/api/articles/${id}`, {
+      const response = await fetch(`/api/articles/${article.slug}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -74,13 +76,53 @@ export default function ManageArticles() {
       }
 
       // 更新文章列表
-      setArticles(articles.filter(article => article.id !== id))
+      setArticles(articles.filter(a => a.id !== article.id))
       alert('文章已成功刪除')
     } catch (error) {
       console.error('Error deleting article:', error)
       alert('刪除文章時發生錯誤')
     }
   }
+
+  const saveSlug = async () => {
+    if (!editingSlug) return;
+    
+    try {
+      const response = await fetch(`/api/articles/${editingSlug.slug}/slug`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ slug: editingSlug.slug }),
+      });
+      
+      if (response.ok) {
+        // 更新本地文章列表
+        setArticles(articles.map(article => 
+          article.id === editingSlug.id 
+            ? { ...article, slug: editingSlug.slug } 
+            : article
+        ));
+        setEditingSlug(null);
+        alert('文章網址已更新成功！');
+      } else {
+        const error = await response.json();
+        alert(error.error || '更新失敗，請重試');
+      }
+    } catch (error) {
+      console.error('Error updating slug:', error);
+      alert('更新時發生錯誤');
+    }
+  };
+
+  // 生成 slug 的辅助函数
+  const generateSlug = (title: string) => {
+    return title
+      .toLowerCase()
+      .replace(/[^\w\u4e00-\u9fa5]+/g, '-') // 保留中文字符和英文字母数字
+      .replace(/^-+|-+$/g, '') // 移除首尾的连字符
+      .substring(0, 80); // 限制长度
+  };
 
   return (
     <PageLayout
@@ -117,6 +159,49 @@ export default function ManageArticles() {
                         {article.category?.name || '未分類'}
                       </span>
                     </div>
+                    
+                    <div className="flex items-center text-xs text-gray-600 dark:text-gray-300 mt-1 mb-1">
+                      <span className="mr-2">網址:</span>
+                      {editingSlug?.id === article.id ? (
+                        <div className="flex items-center">
+                          <input 
+                            type="text"
+                            value={editingSlug.slug || ''} 
+                            onChange={(e) => setEditingSlug({...editingSlug, slug: e.target.value})}
+                            className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded mr-2 w-48 dark:bg-gray-700"
+                            placeholder="自定義網址"
+                          />
+                          <button 
+                            onClick={saveSlug} 
+                            className="text-xs px-2 py-0.5 bg-green-500 text-white rounded hover:bg-green-600"
+                          >
+                            保存
+                          </button>
+                          <button 
+                            onClick={() => setEditingSlug(null)} 
+                            className="text-xs px-2 py-0.5 bg-gray-300 text-gray-700 rounded ml-1 hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
+                          >
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <span className="text-blue-500 dark:text-blue-400">
+                            {article.slug ? `/article/${article.slug}` : '未設置'}
+                          </span>
+                          <button 
+                            onClick={() => setEditingSlug({
+                              id: article.id, 
+                              slug: article.slug || generateSlug(article.title)
+                            })} 
+                            className="text-xs ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                          >
+                            編輯
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
                     <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                       <span>{new Date(article.createdAt).toLocaleDateString('zh-TW')}</span>
                     </div>
@@ -125,7 +210,7 @@ export default function ManageArticles() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => handleEdit(article.id)}
+                      onClick={() => handleEdit(article)}
                       className="bg-white dark:bg-gray-700"
                     >
                       <Pencil className="w-4 h-4 mr-2" />
@@ -134,7 +219,7 @@ export default function ManageArticles() {
                     <Button 
                       variant="outline"
                       size="sm" 
-                      onClick={() => handleDelete(article.id)}
+                      onClick={() => handleDelete(article)}
                       className="border-red-500 text-red-500 hover:bg-red-500 hover:text-white dark:border-red-400 dark:text-red-400 dark:hover:bg-red-500 dark:hover:text-white"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />

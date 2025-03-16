@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     console.log('接收到的完整資料:', body)  // 檢查接收到的資料
     console.log('接收到的圖片資料:', body.images)  // 特別檢查圖片資料
 
-    const { title, content, category, images } = body
+    const { title, content, category, images, slug } = body
 
     // 合併驗證邏輯，避免重複檢查
     if (!title?.trim()) {
@@ -35,6 +35,34 @@ export async function POST(request: Request) {
     if (!category?.trim()) {
       return NextResponse.json(
         { error: "請選擇分類" },
+        { status: 400 }
+      )
+    }
+    
+    // 验证 slug
+    if (!slug?.trim()) {
+      return NextResponse.json(
+        { error: "文章網址不能為空" },
+        { status: 400 }
+      )
+    }
+    
+    // 验证 slug 格式
+    if (!/^[a-z0-9\u4e00-\u9fa5-]+$/.test(slug)) {
+      return NextResponse.json(
+        { error: "無效的網址格式，只能包含小寫字母、數字、中文和連字符" },
+        { status: 400 }
+      )
+    }
+    
+    // 检查 slug 是否已存在
+    const existingArticle = await prisma.article.findFirst({
+      where: { slug: slug.trim() }
+    })
+    
+    if (existingArticle) {
+      return NextResponse.json(
+        { error: "此網址已被使用，請選擇其他網址" },
         { status: 400 }
       )
     }
@@ -85,6 +113,7 @@ export async function POST(request: Request) {
           content: content.trim(),
           categoryId: categoryRecord.id,
           images: processedImages ? JSON.stringify(processedImages) : null,
+          slug: slug.trim(),
           createdAt: new Date(),
           updatedAt: new Date(),
         }

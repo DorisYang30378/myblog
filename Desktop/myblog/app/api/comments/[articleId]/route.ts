@@ -8,12 +8,28 @@ export async function GET(
   { params }: { params: { articleId: string } }
 ) {
   try {
+    // 記錄接收到的參數，用於調試
+    console.log("評論 API 接收到的文章 ID:", params.articleId);
+    
+    if (!params.articleId) {
+      console.error("文章 ID 為空");
+      return NextResponse.json({ error: "文章 ID 不能為空" }, { status: 400 });
+    }
+    
+    // 確保 articleId 是有效的數字
+    const articleId = parseInt(params.articleId, 10);
+    if (isNaN(articleId)) {
+      console.error("無效的文章 ID 格式:", params.articleId);
+      return NextResponse.json({ error: "無效的文章 ID 格式" }, { status: 400 });
+    }
+    
     const session = await getServerSession(authOptions)
     const userId = session?.user?.id
 
+    // 使用 articleId 查詢評論
     const comments = await prisma.comment.findMany({
       where: {
-        articleId: parseInt(params.articleId),
+        articleId: articleId,  // 確保這裡使用解析後的數字 ID
         parentId: null,
       },
       include: {
@@ -45,6 +61,9 @@ export async function GET(
         createdAt: 'desc',
       },
     })
+
+    // 記錄找到的評論數量
+    console.log(`找到 ${comments.length} 條評論，文章 ID: ${articleId}`);
 
     const formattedComments = comments.map(comment => ({
       id: comment.id,

@@ -26,6 +26,7 @@ interface Article {
   comments?: number
   isBookmarked?: boolean
   isLiked?: boolean
+  slug: string
 }
 
 export default function SearchPage() {
@@ -52,9 +53,9 @@ export default function SearchPage() {
         const articlesWithStatus = await Promise.all(
           data.articles.map(async (article: Article) => {
             const [bookmarkRes, likeRes, commentsRes] = await Promise.all([
-              fetch(`/api/articles/${article.id}/bookmark`),
-              fetch(`/api/articles/${article.id}/like`),
-              fetch(`/api/comments/${article.id}`)
+              fetch(`/api/articles/${article.slug}/bookmark`),
+              fetch(`/api/articles/${article.slug}/like`),
+              fetch(`/api/comments/${article.slug}`)
             ])
 
             const { bookmarked } = await bookmarkRes.json()
@@ -85,15 +86,14 @@ export default function SearchPage() {
     fetchResults()
   }, [query])
 
-  const handleAction = async (e: React.MouseEvent, action: string, articleId: number) => {
+  const handleAction = async (e: React.MouseEvent, action: string, article: Article) => {
     e.preventDefault()
     e.stopPropagation()
 
     if (action === "share") {
-      const article = articles.find(a => a.id === articleId)
       if (!article) return
 
-      const url = `${window.location.origin}/article/${articleId}`
+      const url = `${window.location.origin}/article/${article.slug}`
       
       if (navigator.share) {
         try {
@@ -125,7 +125,7 @@ export default function SearchPage() {
 
     if (action === "like" || action === "bookmark") {
       try {
-        const response = await fetch(`/api/articles/${articleId}/${action}`, {
+        const response = await fetch(`/api/articles/${article.slug}/${action}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         })
@@ -134,18 +134,18 @@ export default function SearchPage() {
 
         const data = await response.json()
         
-        setArticles(articles.map(article => 
-          article.id === articleId 
+        setArticles(articles.map(a => 
+          a.id === article.id 
             ? { 
-                ...article, 
+                ...a, 
                 ...(action === 'like' ? {
-                  likes: data.liked ? (article.likes || 0) + 1 : (article.likes || 0) - 1,
+                  likes: data.liked ? (a.likes || 0) + 1 : (a.likes || 0) - 1,
                   isLiked: data.liked
                 } : {
                   isBookmarked: data.bookmarked
                 })
               }
-            : article
+            : a
         ))
       } catch (error) {
         console.error(`${action}出錯:`, error)
@@ -170,7 +170,7 @@ export default function SearchPage() {
         ) : articles.length > 0 ? (
           <div>
             {articles.map((article) => (
-              <Link href={`/article/${article.id}`} key={article.id}>
+              <Link href={`/article/${article.slug}`} key={article.id}>
                 <Card className="bg-[#FDFBF7] dark:bg-gray-800 hover:shadow-[0_2px_8px_rgba(139,110,78,0.1)] transition-all duration-300 ease-in-out hover:-translate-y-0.5 h-auto mb-4">
                   <CardContent className="p-2 sm:p-3 md:p-4 flex flex-col h-full">
                     <div className="flex items-start pr-2 pl-3 flex-grow">
@@ -223,7 +223,7 @@ export default function SearchPage() {
                     </div>
                     <div className="flex items-center gap-3 mt-1 mb-1 pl-3 pr-2 text-[#8B7355] dark:text-gray-400">
                       <button
-                        onClick={(e) => handleAction(e, "like", article.id)}
+                        onClick={(e) => handleAction(e, "like", article)}
                         className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                       >
                         <Heart 
@@ -236,7 +236,7 @@ export default function SearchPage() {
                         </span>
                       </button>
                       <button
-                        onClick={(e) => handleAction(e, "comment", article.id)}
+                        onClick={(e) => handleAction(e, "comment", article)}
                         className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                       >
                         <MessageCircle className="sm:w-5 sm:h-5 w-4 h-4 transition-transform group-hover:scale-110" />
@@ -245,7 +245,7 @@ export default function SearchPage() {
                         </span>
                       </button>
                       <button
-                        onClick={(e) => handleAction(e, "bookmark", article.id)}
+                        onClick={(e) => handleAction(e, "bookmark", article)}
                         className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                       >
                         <Bookmark 
@@ -255,7 +255,7 @@ export default function SearchPage() {
                         />
                       </button>
                       <button
-                        onClick={(e) => handleAction(e, "share", article.id)}
+                        onClick={(e) => handleAction(e, "share", article)}
                         className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                       >
                         <Share2 className="sm:w-5 sm:h-5 w-4 h-4 transition-transform group-hover:scale-110" />

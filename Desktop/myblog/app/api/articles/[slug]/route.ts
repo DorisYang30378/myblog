@@ -5,17 +5,17 @@ import { NextResponse } from "next/server"
 // 獲取單篇文章
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { slug: string } }
 ) {
   const { headers } = request
   headers.set('Cache-Control', 'no-store')  // 禁用緩存
   
   try {
-    console.log('正在獲取文章，ID:', params.id)  // 添加日誌
+    console.log('正在獲取文章，slug:', params.slug)  // 添加日誌
     
-    const article = await prisma.article.findUnique({
+    const article = await prisma.article.findFirst({
       where: {
-        id: Number(params.id)
+        slug: params.slug
       },
       include: {
         category: true
@@ -68,16 +68,59 @@ interface UploadedImage {
 // 更新文章
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { slug: string } }
 ) {
   try {
     const body = await request.json()
-    const { title, content, categoryName, images } = body
+    const { title, content, categoryName, images, slug: newSlug } = body  // 重命名為 newSlug 避免混淆
 
     // 驗證必要欄位
     if (!title?.trim() || !content?.trim() || !categoryName?.trim()) {
       return NextResponse.json(
         { error: "所有欄位都是必填的" },
+        { status: 400 }
+      )
+    }
+    
+    // 验证 slug
+    if (!newSlug?.trim()) {
+      return NextResponse.json(
+        { error: "文章網址不能為空" },
+        { status: 400 }
+      )
+    }
+    
+    // 验证 slug 格式
+    if (!/^[a-z0-9\u4e00-\u9fa5-]+$/.test(newSlug)) {
+      return NextResponse.json(
+        { error: "無效的網址格式，只能包含小寫字母、數字、中文和連字符" },
+        { status: 400 }
+      )
+    }
+    
+    // 先通過 slug 獲取當前文章
+    const currentArticle = await prisma.article.findFirst({
+      where: { slug: params.slug }
+    })
+    
+    if (!currentArticle) {
+      return NextResponse.json(
+        { error: "文章不存在" },
+        { status: 404 }
+      )
+    }
+    
+    // 检查 slug 是否已被其他文章使用
+    const existingArticle = await prisma.article.findFirst({
+      where: {
+        slug: newSlug.trim(),
+        id: { not: currentArticle.id }
+      }
+    });
+    
+    if (existingArticle) {
+      return NextResponse.json(
+        { error: "此網址已被其他文章使用" },
         { status: 400 }
       )
     }
@@ -100,12 +143,13 @@ export async function PUT(
 
     // 更新文章
     const article = await prisma.article.update({
-      where: { id: parseInt(params.id) },
+      where: { id: currentArticle.id },
       data: {
         title: title.trim(),
         content: content.trim(),
         categoryId: category.id,
         images: processedImages,
+        slug: newSlug.trim(),
         updatedAt: new Date()
       }
     })
@@ -123,11 +167,24 @@ export async function PUT(
 // 確保導出 DELETE 方法
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { slug: string } }
 ) {
   try {
-    console.log('正在嘗試刪除文章，ID:', params.id)
-    const articleId = Number(params.id)
+    console.log('正在嘗試刪除文章，slug:', params.slug)
+    
+    // 先通過 slug 查找文章
+    const article = await prisma.article.findFirst({
+      where: { slug: params.slug }
+    })
+    
+    if (!article) {
+      return NextResponse.json(
+        { error: "文章不存在" },
+        { status: 404 }
+      )
+    }
+    
+    const articleId = article.id
     
     // 使用事务确保数据一致性
     const result = await prisma.$transaction(async (tx) => {

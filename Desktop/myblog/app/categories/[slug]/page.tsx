@@ -5,18 +5,18 @@ import CategoryClient from './CategoryClient'
 
 interface CategoryPageProps {
   params: {
-    id: string
+    slug: string
   }
 }
 
-export default async function CategoryPage({ params }: CategoryPageProps) {
+export default async function CategoryPage({ params }: { params: { slug: string } }) {
   // 1. 檢查 URL 參數
-  console.log('1. URL id:', params.id)
+  console.log('1. URL id:', params.slug)
 
   // 2. 查詢資料庫
   const category = await prisma.category.findFirst({
     where: {
-      slug: params.id
+      slug: params.slug
     }
   })
   console.log('Category data from database:', category)
@@ -32,9 +32,9 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   )
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const category = await prisma.category.findUnique({
-    where: { slug: params.id }
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const category = await prisma.category.findFirst({
+    where: { slug: params.slug }
   })
 
   if (!category) return {}

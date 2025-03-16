@@ -17,9 +17,9 @@ const getImageAlt = (url: string) => {
   }
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const article = await prisma.article.findUnique({
-    where: { id: parseInt(params.id) },
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const article = await prisma.article.findFirst({
+    where: { slug: params.slug },
     include: { category: true }
   })
 
@@ -49,14 +49,14 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     },
     metadataBase: new URL('https://你的網站域名'),
     alternates: {
-      canonical: `/article/${article.id}`
+      canonical: `/article/${article.slug}`
     }
   }
 }
 
-export default async function ArticlePage({ params }: { params: { id: string } }) {
-  const article = await prisma.article.findUnique({
-    where: { id: parseInt(params.id) },
+export default async function ArticlePage({ params }: { params: { slug: string } }) {
+  const article = await prisma.article.findFirst({
+    where: { slug: params.slug },
     include: { category: true }
   })
 
@@ -85,7 +85,7 @@ export default async function ArticlePage({ params }: { params: { id: string } }
     },
     "mainEntityOfPage": {
       "@type": "WebPage",
-      "@id": `https://curioushammy.com/article/${article.id}`
+      "@id": `https://curioushammy.com/article/${article.slug}`
     }
   }
 

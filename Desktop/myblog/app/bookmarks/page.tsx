@@ -25,6 +25,7 @@ interface BookmarkedArticle {
   likes?: number
   comments?: number
   isLiked?: boolean
+  slug: string
 }
 
 export default function BookmarksPage() {
@@ -61,20 +62,26 @@ export default function BookmarksPage() {
         const articlesWithStatus = await Promise.all(
           cleanedArticles.map(async (article: BookmarkedArticle) => {
             try {
-              const likeResponse = await fetch(`/api/articles/${article.id}/like`)
-              const { liked, totalLikes } = await likeResponse.json()
+              // 確保 slug 存在
+              if (!article.slug) {
+                console.error(`文章 ${article.id} 缺少 slug 字段`);
+                return article;
+              }
+              
+              const likeResponse = await fetch(`/api/articles/${article.slug}/like`);
+              const { liked, totalLikes } = await likeResponse.json();
               
               return {
                 ...article,
                 isLiked: liked,
                 likes: totalLikes || article.likes || 0
-              }
+              };
             } catch (error) {
-              console.error(`獲取文章 ${article.id} 按讚狀態失敗:`, error)
-              return article
+              console.error(`獲取文章 ${article.id} 按讚狀態失敗:`, error);
+              return article;
             }
           })
-        )
+        );
 
         setBookmarkedArticles(articlesWithStatus)
       } catch (error) {
@@ -85,17 +92,20 @@ export default function BookmarksPage() {
     fetchBookmarks()
   }, [user, router])
 
-  const handleRemoveBookmark = async (e: React.MouseEvent, articleId: number) => {
+  const handleRemoveBookmark = async (e: React.MouseEvent, article: BookmarkedArticle) => {
     e.preventDefault()
     e.stopPropagation()
-    setArticleToRemove(articleId)
+    setArticleToRemove(article.id)
     setIsConfirmDialogOpen(true)
   }
 
   const confirmRemoveBookmark = async () => {
     if (articleToRemove) {
       try {
-        const response = await fetch(`/api/articles/${articleToRemove}/bookmark`, {
+        const articleToRemoveObj = bookmarkedArticles.find(a => a.id === articleToRemove)
+        if (!articleToRemoveObj) return
+        
+        const response = await fetch(`/api/articles/${articleToRemoveObj.slug}/bookmark`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -117,16 +127,15 @@ export default function BookmarksPage() {
     }
   }
 
-  const handleAction = async (e: React.MouseEvent, action: string, articleId: number) => {
+  const handleAction = async (e: React.MouseEvent, action: string, article: BookmarkedArticle) => {
     e.preventDefault()
     e.stopPropagation()
 
     // 處理分享功能
     if (action === "share") {
-      const article = bookmarkedArticles.find(a => a.id === articleId)
       if (!article) return
 
-      const url = `${window.location.origin}/article/${articleId}`
+      const url = `${window.location.origin}/article/${article.slug}`
       
       if (navigator.share) {
         try {
@@ -159,7 +168,7 @@ export default function BookmarksPage() {
 
     if (action === "like") {
       try {
-        const response = await fetch(`/api/articles/${articleId}/like`, {
+        const response = await fetch(`/api/articles/${article.slug}/like`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -173,15 +182,15 @@ export default function BookmarksPage() {
         const { liked, totalLikes } = await response.json()
         
         setBookmarkedArticles(prevArticles => 
-          prevArticles.map(article => 
-            article.id === articleId 
+          prevArticles.map(a => 
+            a.id === article.id 
               ? {
-                  ...article,
+                  ...a,
                   isLiked: liked,
                   likes: totalLikes,
-                  excerpt: article.excerpt
+                  excerpt: a.excerpt
                 }
-              : article
+              : a
           )
         )
       } catch (error) {
@@ -212,7 +221,7 @@ export default function BookmarksPage() {
             {bookmarkedArticles.length > 0 ? (
               <div className="grid gap-4">
                 {bookmarkedArticles.map((article) => (
-                  <Link href={`/article/${article.id}`} key={article.id}>
+                  <Link href={`/article/${article.slug}`} key={article.id}>
                     <Card className="bg-[#FDFBF7] dark:bg-gray-800 hover:shadow-[0_2px_8px_rgba(139,110,78,0.1)] transition-all duration-300 ease-in-out hover:-translate-y-0.5 h-auto">
                       <CardContent className="p-2 sm:p-3 md:p-4 flex flex-col h-full">
                         <div className="flex items-start pr-2 pl-3 flex-grow">
@@ -274,7 +283,7 @@ export default function BookmarksPage() {
                         </div>
                         <div className="flex items-center gap-3 mt-1 mb-1 pl-3 pr-2 text-[#8B7355] dark:text-gray-400">
                           <button
-                            onClick={(e) => handleAction(e, "like", article.id)}
+                            onClick={(e) => handleAction(e, "like", article)}
                             className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                           >
                             <Heart 
@@ -287,7 +296,7 @@ export default function BookmarksPage() {
                             </span>
                           </button>
                           <button
-                            onClick={(e) => handleAction(e, "comment", article.id)}
+                            onClick={(e) => handleAction(e, "comment", article)}
                             className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                           >
                             <MessageCircle className="sm:w-5 sm:h-5 w-4 h-4 transition-transform group-hover:scale-110" />
@@ -296,13 +305,13 @@ export default function BookmarksPage() {
                             </span>
                           </button>
                           <button
-                            onClick={(e) => handleRemoveBookmark(e, article.id)}
+                            onClick={(e) => handleRemoveBookmark(e, article)}
                             className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                           >
                             <Bookmark className="sm:w-5 sm:h-5 w-4 h-4 fill-current transition-transform group-hover:scale-110" />
                           </button>
                           <button
-                            onClick={(e) => handleAction(e, "share", article.id)}
+                            onClick={(e) => handleAction(e, "share", article)}
                             className="flex items-center gap-1 hover:text-[#5C4033] dark:hover:text-white transition-colors text-xs md:text-sm group"
                           >
                             <Share2 className="sm:w-5 sm:h-5 w-4 h-4 transition-transform group-hover:scale-110" />

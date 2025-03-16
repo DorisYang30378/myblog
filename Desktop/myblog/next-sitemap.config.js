@@ -29,14 +29,14 @@ module.exports = {
   async additionalPaths(config) {
     const query = await prisma.article.findMany({
       select: {
-        id: true,
+        slug: true,
         updatedAt: true
       }
     })
 
     // 為每篇文章生成 sitemap 項目
     return query.map((article) => ({
-      loc: `/article/${article.id}`,
+      loc: `/article/${article.slug}`,
       lastmod: new Date(article.updatedAt).toISOString(),
       changefreq: 'weekly',
       priority: 0.8

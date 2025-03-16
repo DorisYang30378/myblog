@@ -54,6 +54,7 @@ export async function GET() {
       return {
         id: bookmark.article.id,
         title: bookmark.article.title,
+        slug: bookmark.article.slug || `article-${bookmark.article.id}`,
         createdAt: bookmark.article.createdAt.toISOString(),
         category: bookmark.article.category.name,
         excerpt: bookmark.article.content.substring(0, 100) + "...",
