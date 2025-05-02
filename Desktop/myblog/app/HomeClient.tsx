@@ -7,7 +7,7 @@ import Footer from "./components/Footer"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Heart, MessageCircle, Bookmark, Share2 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, memo } from "react"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
@@ -19,18 +19,20 @@ interface Article {
   id: number
   title: string
   content: string
-  images: string | null
   category: {
     name: string
+    slug: string
   }
   categoryId: number
   createdAt: string
-  updatedAt: string
-  likes?: number
+  updatedAt?: string
   comments?: number
-  isBookmarked?: boolean
+  likes?: number
   isLiked?: boolean
+  isBookmarked?: boolean
+  images: string | null
   slug: string
+  thumbnail?: string | null
 }
 
 interface ArticleImage {
@@ -87,7 +89,8 @@ const fetchArticle = async (id: string, setImages: (images: UploadedImage[]) => 
       category: data.category?.name || "",
       content: data.content,
       images: imageArray,
-      slug: data.slug
+      slug: data.slug,
+      thumbnail: data.thumbnail
     }
   } catch (error) {
     console.error('Error fetching article:', error)
@@ -107,95 +110,122 @@ const getImageAlt = (url: string) => {
   }
 }
 
-
+const ArticleImage = memo(({ article, index }: { article: Article, index: number }) => {
+  const isPriority = index === 0  // 只優先載入第一張
+  const imageUrl = article.thumbnail || '/placeholder.svg'
+  
+  // 針對首張圖片進行特殊處理
+  if (index === 0) {
+    return (
+      <div className="relative w-full h-full bg-gray-100 rounded-lg">
+        <Image
+          src={imageUrl}
+          alt=""
+          fill
+          className="object-cover rounded-lg"
+          priority={true}
+          fetchPriority="high"
+          loading="eager"
+          sizes="(max-width: 768px) 80px, 112px"
+          quality={60}
+          unoptimized={imageUrl.includes('/placeholder.svg')}  // 佔位圖不需要優化
+        />
+      </div>
+    )
+  }
+  
+  // 其他圖片使用標準設置
+  return (
+    <div className="relative w-full h-full bg-gray-100 rounded-lg">
+      <Image
+        src={imageUrl}
+        alt=""
+        fill
+        className="object-cover rounded-lg"
+        priority={false}
+        loading="lazy"
+        sizes="(max-width: 768px) 80px, 112px"
+        quality={index < 3 ? 60 : 45}  // 只有前3張保持較高品質
+      />
+    </div>
+  )
+})
 
 export default function HomeClient() {
   const [articles, setArticles] = useState<Article[]>([])
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const { data: session } = useSession()
 
-  useEffect(() => {
-    const fetchArticles = async () => {
-      try {
-        console.log('開始獲取文章列表')
-        
-        // 直接從 API 獲取文章列表
-        const response = await fetch('/api/articles')
-        console.log('文章 API 響應狀態:', response.status)
-        
-        if (!response.ok) {
-          console.error('獲取文章列表失敗:', response.statusText)
-          setArticles([])
-          return
-        }
-        
-        const articlesData = await response.json()
-        console.log('獲取到的文章數據:', articlesData)
-        
-        if (!articlesData || articlesData.length === 0) {
-          console.log('沒有找到文章')
-          setArticles([])
-          return
-        }
-
-        // 獲取每篇文章的收藏、按讚和評論狀態
-        const articlesWithStatus = await Promise.all(
-          articlesData.map(async (article: Article) => {
-            try {
-              // 獲取收藏狀態
-              const bookmarkResponse = await fetch(`/api/articles/${article.slug}/bookmark`)
-              const bookmarkData = await bookmarkResponse.json()
-              const bookmarked = bookmarkData.bookmarked || false
-              
-              // 獲取按讚狀態
-              const likeResponse = await fetch(`/api/articles/${article.slug}/like`)
-              const likeData = await likeResponse.json()
-              const liked = likeData.liked || false
-              const totalLikes = likeData.totalLikes || 0
-              
-              // 獲取評論數 - 使用 article.id 而不是 slug
-              let commentCount = 0
-              try {
-                // 修改這裡：使用 article.id 而不是 article.slug
-                const commentsResponse = await fetch(`/api/comments/${article.id}`)
-                if (commentsResponse.ok) {
-                  const comments = await commentsResponse.json()
-                  // 添加錯誤處理，確保 comments 是數組
-                  if (Array.isArray(comments)) {
-                    commentCount = comments.reduce((acc, comment) => 
-                      acc + 1 + (comment.replies?.length || 0), 0)
-                  } else {
-                    console.log(`文章 ${article.id} 的評論不是數組:`, comments)
-                    commentCount = 0
-                  }
-                }
-              } catch (commentError) {
-                console.error(`獲取文章 ${article.id} 的評論失敗:`, commentError)
-              }
-              
-              return {
-                ...article,
-                isBookmarked: bookmarked,
-                isLiked: liked,
-                likes: totalLikes,
-                comments: commentCount
-              }
-            } catch (articleError) {
-              console.error(`處理文章 ${article.id} 時出錯:`, articleError)
-              return article // 返回原始文章，不帶額外狀態
-            }
-          })
-        )
-
-        console.log('處理後的文章:', articlesWithStatus)
-        setArticles(articlesWithStatus)
-      } catch (error) {
-        console.error('獲取文章列表失敗:', error)
-        setArticles([]) // 設置為空數組，避免 undefined
+  const fetchArticles = async () => {
+    try {
+      const response = await fetch('/api/articles')
+      if (!response.ok) {
+        throw new Error('獲取文章失敗')
       }
-    }
+      
+      const articlesData = await response.json()
+      
+      // 添加這個部分，獲取每篇文章的點讚和收藏狀態
+      const articlesWithStatus = await Promise.all(
+        articlesData.map(async (article: Article) => {
+          try {
+            const [bookmarkResponse, likeResponse, commentsResponse] = await Promise.all([
+              fetch(`/api/articles/${article.slug}/bookmark`),
+              fetch(`/api/articles/${article.slug}/like`),
+              fetch(`/api/comments/${article.id}`)
+            ])
 
+            const { bookmarked } = await bookmarkResponse.json()
+            const { liked, totalLikes } = await likeResponse.json()
+            
+            let commentCount = 0
+            if (commentsResponse.ok) {
+              const comments = await commentsResponse.json()
+              if (Array.isArray(comments)) {
+                commentCount = comments.reduce((acc: number, comment: any) => 
+                  acc + 1 + (Array.isArray(comment.replies) ? comment.replies.length : 0), 0)
+              }
+            }
+
+            return {
+              ...article,
+              isBookmarked: bookmarked,
+              isLiked: liked,
+              likes: totalLikes || 0,
+              comments: commentCount
+            }
+          } catch (error) {
+            console.error(`處理文章 ${article.slug} 狀態失敗:`, error)
+            return {
+              ...article,
+              isBookmarked: false,
+              isLiked: false,
+              likes: 0,
+              comments: 0
+            }
+          }
+        })
+      )
+      
+      // 設置帶有狀態的文章數據
+      setArticles(articlesWithStatus)
+    } catch (error) {
+      console.error('獲取文章失敗:', error)
+    }
+  }
+
+  useEffect(() => {
     fetchArticles()
+  }, [session])
+
+  useEffect(() => {
+    const handleLoginSuccess = () => {
+      console.log('用戶登入成功，重新載入文章狀態')
+      fetchArticles()
+    }
+    
+    window.addEventListener('user-login-success', handleLoginSuccess)
+    return () => window.removeEventListener('user-login-success', handleLoginSuccess)
   }, [])
 
   const handleAction = async (e: React.MouseEvent, action: string, article: Article) => {
@@ -251,14 +281,14 @@ export default function HomeClient() {
         const { liked } = await response.json()
         
         // 更新文章列表中的按讚狀態和數量
-        setArticles(articles.map(article => 
-          article.id === article.id 
+        setArticles(articles.map(a => 
+          a.id === article.id  // 修改這裡，使用 a 而不是 article
             ? { 
-                ...article, 
-                likes: liked ? (article.likes || 0) + 1 : (article.likes || 0) - 1,
+                ...a,  // 這裡也要改成 a
+                likes: liked ? (a.likes || 0) + 1 : (a.likes || 0) - 1,
                 isLiked: liked
               }
-            : article
+            : a
         ))
       } catch (error) {
         console.error('按讚出錯:', error)
@@ -280,13 +310,13 @@ export default function HomeClient() {
         const { bookmarked } = await response.json()
         
         // 更新文章列表中的收藏狀態
-        setArticles(articles.map(article => 
-          article.id === article.id 
+        setArticles(articles.map(a => 
+          a.id === article.id  // 修改這裡，使用 a 而不是 article
             ? { 
-                ...article, 
+                ...a,  // 這裡也要改成 a
                 isBookmarked: bookmarked
               }
-            : article
+            : a
         ))
       } catch (error) {
         console.error('收藏出錯:', error)
@@ -325,7 +355,7 @@ export default function HomeClient() {
           最新文章
         </h1>
         <section className="max-w-3xl mx-auto">
-          {articles.map((article) => (
+          {articles.map((article, index) => (
             <Link href={`/article/${article.slug}`} key={article.id}>
               <Card className="bg-[#FDFBF7] dark:bg-gray-800 hover:shadow-[0_2px_8px_rgba(139,110,78,0.1)] transition-all duration-300 ease-in-out hover:-translate-y-0.5 h-auto mb-4">
                 <CardContent className="p-2 sm:p-3 md:p-4 flex flex-col h-full">
@@ -361,36 +391,7 @@ export default function HomeClient() {
                       </div>
                     </div>
                     <div className="w-20 h-20 md:w-28 md:h-28 relative flex-shrink-0 mt-8">
-                      {article.images && (
-                        <div className="h-full">
-                          {(() => {
-                            const images = JSON.parse(article.images)
-                            if (images.length > 0) {
-                              const imagePath = images[0].url.startsWith('http') 
-                                ? images[0].url 
-                                : images[0].url.startsWith('/uploads')
-                                  ? images[0].url
-                                  : `/uploads/${images[0].url.split('/').pop()}`
-
-                              return (
-                                <Image
-                                  src={imagePath}
-                                  alt={getImageAlt(images[0].url)}
-                                  fill
-                                  className="object-cover rounded-lg"
-                                  priority={true}
-                                  loading="eager"
-                                  sizes="(max-width: 768px) 80px, 112px"
-                                  quality={60}
-                                  placeholder="blur"
-                                  blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDABQODxIPDRQSEBIXFRQdHx4dHRsdHSIeHx8iHiMnJyUmJycjIyYmKCgrKCgmLzAwLi45OTk5OTk5OTk5OTk5OTn/2wBDARUXFyAeIB4dHh4iIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiL/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
-                                />
-                              )
-                            }
-                            return null
-                          })()}
-                        </div>
-                      )}
+                      <ArticleImage article={article} index={index} />
                     </div>
                   </div>
                   <div className="flex items-center gap-3 mt-1 mb-1 pl-3 pr-2 text-[#8B7355] dark:text-gray-400">

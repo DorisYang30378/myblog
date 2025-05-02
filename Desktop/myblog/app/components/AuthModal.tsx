@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import ForgotPasswordModal from "./ForgotPasswordModal"
-import { signIn } from "next-auth/react"
+import { signIn, useSession } from "next-auth/react"
+import { useUser } from "@/app/contexts/UserContext"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -28,6 +29,36 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [loginError, setLoginError] = useState("")
   const [registerName, setRegisterName] = useState("")
   const [registerError, setRegisterError] = useState("")
+  const [isReady, setIsReady] = useState(false)
+  const { data: session, status } = useSession()
+  const { setUser } = useUser()
+  
+  // 保存之前的登入狀態以檢測變化
+  const [prevStatus, setPrevStatus] = useState(status)
+  
+  useEffect(() => {
+    setIsReady(true)
+  }, [])
+  
+  // 檢測登入狀態變化
+  useEffect(() => {
+    // 如果之前不是已認證，現在是已認證，說明剛剛成功登入
+    if (prevStatus !== 'authenticated' && status === 'authenticated') {
+      // 登入成功，發出自定義事件通知其他組件重新載入數據
+      const loginEvent = new CustomEvent('user-login-success', {
+        detail: { user: session?.user }
+      })
+      window.dispatchEvent(loginEvent)
+      
+      // 關閉模態框
+      onClose()
+    }
+    
+    // 更新之前的狀態
+    setPrevStatus(status)
+  }, [status, session, onClose, prevStatus])
+
+  if (!isReady) return null
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -3,8 +3,8 @@ import sharp from 'sharp'
 export async function optimizeImage(buffer: Buffer) {
   try {
     const optimized = await sharp(buffer)
-      .webp({ quality: 80 })  // 轉換為 WebP 格式
-      .resize(800, null, {    // 最大寬度 800px，高度自適應
+      .webp({ quality: 70 })  // 降低品質
+      .resize(600, null, {    // 最大寬度減小
         withoutEnlargement: true,
         fit: 'inside'
       })

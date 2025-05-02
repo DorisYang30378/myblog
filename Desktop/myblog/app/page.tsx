@@ -12,7 +12,17 @@ export const metadata: Metadata = {
   }
 }
 
+// 使用增量靜態再生成(ISR)
+export const revalidate = 3600; // 每小時重新生成一次
+
+// 你可以根據需求調整這個時間
+// export const revalidate = 1800; // 每30分鐘重新生成一次
+
 export default function Home() {
-  return <HomeClient />
+  return (
+    <main>
+      <HomeClient />
+    </main>
+  )
 }
 

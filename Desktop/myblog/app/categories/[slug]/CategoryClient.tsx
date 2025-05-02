@@ -18,18 +18,20 @@ interface Article {
   id: number
   title: string
   content: string
-  images: string | null
   category: {
     name: string
+    slug: string
   }
   categoryId: number
   createdAt: string
-  updatedAt: string
-  slug: string
-  likes?: number
+  updatedAt?: string
   comments?: number
-  isBookmarked?: boolean
+  likes?: number
   isLiked?: boolean
+  isBookmarked?: boolean
+  images: string | null
+  slug: string
+  thumbnail?: string | null
 }
 
 interface CategoryClientProps {
@@ -54,24 +56,41 @@ export default function CategoryClient({ category }: CategoryClientProps) {
 
         const articlesWithStatus = await Promise.all(
           articlesData.map(async (article: Article) => {
-            const [bookmarkResponse, likeResponse, commentsResponse] = await Promise.all([
-              fetch(`/api/articles/${article.slug}/bookmark`),
-              fetch(`/api/articles/${article.slug}/like`),
-              fetch(`/api/comments/${article.slug}`)
-            ])
+            try {
+              const [bookmarkResponse, likeResponse, commentsResponse] = await Promise.all([
+                fetch(`/api/articles/${article.slug}/bookmark`),
+                fetch(`/api/articles/${article.slug}/like`),
+                fetch(`/api/comments/${article.id}`)
+              ])
 
-            const { bookmarked } = await bookmarkResponse.json()
-            const { liked, totalLikes } = await likeResponse.json()
-            const comments = await commentsResponse.json()
-            const commentCount = comments.reduce((acc: number, comment: any) => 
-              acc + 1 + (comment.replies?.length || 0), 0)
+              const { bookmarked } = await bookmarkResponse.json()
+              const { liked, totalLikes } = await likeResponse.json()
+              
+              let commentCount = 0
+              if (commentsResponse.ok) {
+                const comments = await commentsResponse.json()
+                if (Array.isArray(comments)) {
+                  commentCount = comments.reduce((acc: number, comment: any) => 
+                    acc + 1 + (Array.isArray(comment.replies) ? comment.replies.length : 0), 0)
+                }
+              }
 
-            return {
-              ...article,
-              isBookmarked: bookmarked,
-              isLiked: liked,
-              likes: totalLikes || 0,
-              comments: commentCount
+              return {
+                ...article,
+                isBookmarked: bookmarked,
+                isLiked: liked,
+                likes: totalLikes || 0,
+                comments: commentCount
+              }
+            } catch (error) {
+              console.error(`處理文章 ${article.slug} 狀態失敗:`, error)
+              return {
+                ...article,
+                isBookmarked: false,
+                isLiked: false,
+                likes: 0,
+                comments: 0
+              }
             }
           })
         )
@@ -83,6 +102,17 @@ export default function CategoryClient({ category }: CategoryClientProps) {
     }
 
     fetchArticles()
+    
+    const handleLoginSuccess = () => {
+      console.log('用戶登入成功，重新載入分類文章狀態')
+      fetchArticles()
+    }
+    
+    window.addEventListener('user-login-success', handleLoginSuccess)
+    
+    return () => {
+      window.removeEventListener('user-login-success', handleLoginSuccess)
+    }
   }, [category.slug])
 
   const handleAction = async (e: React.MouseEvent, action: string, article: Article) => {
@@ -199,35 +229,45 @@ export default function CategoryClient({ category }: CategoryClientProps) {
                         </div>
                       </div>
                       <div className="w-20 h-20 md:w-28 md:h-28 relative flex-shrink-0 mt-8">
-                        {article.images && (
-                          <div className="h-full">
-                            {(() => {
-                              try {
-                                const images = JSON.parse(article.images)
-                                if (images && images.length > 0) {
-                                  return (
-                                    <Image
-                                      src={images[0].url}
-                                      alt=""
-                                      fill
-                                      className="object-cover rounded-lg"
-                                    />
-                                  )
-                                }
-                              } catch (error) {
-                                console.error('解析圖片失敗:', error)
+                        {(() => {
+                          if (article.thumbnail) {
+                            return (
+                              <Image
+                                src={article.thumbnail}
+                                alt=""
+                                fill
+                                className="object-cover rounded-lg"
+                              />
+                            )
+                          }
+                          
+                          if (article.images) {
+                            try {
+                              const images = JSON.parse(article.images)
+                              if (images && images.length > 0) {
+                                return (
+                                  <Image
+                                    src={images[0].url}
+                                    alt=""
+                                    fill
+                                    className="object-cover rounded-lg"
+                                  />
+                                )
                               }
-                              return (
-                                <Image
-                                  src="/placeholder.svg"
-                                  alt=""
-                                  fill
-                                  className="object-cover rounded-lg"
-                                />
-                              )
-                            })()}
-                          </div>
-                        )}
+                            } catch (error) {
+                              console.error('解析圖片失敗:', error)
+                            }
+                          }
+                          
+                          return (
+                            <Image
+                              src="/placeholder.svg"
+                              alt=""
+                              fill
+                              className="object-cover rounded-lg"
+                            />
+                          )
+                        })()}
                       </div>
                     </div>
                     <div className="flex items-center gap-3 mt-1 mb-1 pl-3 pr-2 text-[#8B7355] dark:text-gray-400">

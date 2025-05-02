@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import ReactMarkdown from "react-markdown"
-import { Eye, Edit, Plus, Trash2, Upload, PlusCircle } from "lucide-react"
+import { Eye, Edit, Plus, Trash2, Upload, PlusCircle, Check } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import Image from "next/image"
 import remarkGfm from 'remark-gfm'
@@ -20,6 +20,17 @@ interface UploadedImage {
   id: string
   file: File
   preview: string
+}
+
+interface Article {
+  id: number;
+  title: string;
+  category: string;
+  content: string;
+  images: UploadedImage[];
+  hideImageCaptions: boolean;
+  slug: string;
+  thumbnail?: string | null;  // 修改這裡
 }
 
 // 修改 fetchArticle 函數來從 API 獲取實際文章數據
@@ -71,7 +82,8 @@ const fetchArticle = async (slug: string, setImages: (images: UploadedImage[]) =
       content: cleanContent,
       images: processedImages,
       hideImageCaptions: hasHideImageCaptionsTag,
-      slug: data.slug || ''
+      slug: data.slug || '',
+      thumbnail: data.thumbnail || null  // 添加縮圖
     }
   } catch (error) {
     console.error('獲取文章失敗:', error)
@@ -176,15 +188,7 @@ const MarkdownRenderer = ({ content, images, hideImageCaptions }: {
 export default function EditArticle({ params }: { params: { slug: string } }) {
   const router = useRouter()
   const { user } = useUser()
-  const [article, setArticle] = useState<{
-    id: number;
-    title: string;
-    category: string;
-    content: string;
-    images: UploadedImage[];
-    hideImageCaptions: boolean;
-    slug: string;
-  }>({ id: 0, title: "", category: "", content: "", images: [], hideImageCaptions: false, slug: "" })
+  const [article, setArticle] = useState<Article>({ id: 0, title: "", category: "", content: "", images: [], hideImageCaptions: false, slug: "" })
   const [isLoading, setIsLoading] = useState(true)  // 添加載入狀態
   const [isPreviewMode, setIsPreviewMode] = useState(false)
   const [isNewCategoryDialogOpen, setIsNewCategoryDialogOpen] = useState(false)
@@ -197,10 +201,11 @@ export default function EditArticle({ params }: { params: { slug: string } }) {
   const [hideImageCaptions, setHideImageCaptions] = useState(false)
   const [title, setTitle] = useState("")
   const [slug, setSlug] = useState("")  // 添加 slug 状态
+  const [selectedThumbnail, setSelectedThumbnail] = useState<string | null>(null)
 
   // 修改資料獲取邏輯
   useEffect(() => {
-    let isMounted = true  // 添加組件掛載狀態檢查
+    let isMounted = true
 
     const loadData = async () => {
       if (!user) {
@@ -210,9 +215,6 @@ export default function EditArticle({ params }: { params: { slug: string } }) {
 
       try {
         setIsLoading(true)
-        console.log('開始獲取文章數據, slug:', params.slug)
-
-        // 並行獲取文章和分類數據
         const [articleData, categoriesData] = await Promise.all([
           fetchArticle(params.slug, setImages),
           fetchCategories()
@@ -221,13 +223,11 @@ export default function EditArticle({ params }: { params: { slug: string } }) {
         if (!isMounted) return
 
         if (articleData) {
-          console.log('獲取到文章數據:', articleData)
           setArticle(articleData)
           setHideImageCaptions(articleData.hideImageCaptions)
           setTitle(articleData.title)
           setSlug(articleData.slug)
-        } else {
-          console.error('無法獲取文章數據')
+          setSelectedThumbnail(articleData.thumbnail || null)  // 設置縮圖
         }
 
         if (categoriesData.length > 0) {
@@ -245,11 +245,10 @@ export default function EditArticle({ params }: { params: { slug: string } }) {
 
     loadData()
 
-    // 清理函數
     return () => {
       isMounted = false
     }
-  }, [params.slug, user]) // 移除 router 依賴
+  }, [params.slug, user])
 
   // 添加載入中狀態的顯示
   if (isLoading) {
@@ -325,6 +324,18 @@ export default function EditArticle({ params }: { params: { slug: string } }) {
         finalContent = finalContent.replace('<!-- HIDE_IMAGE_CAPTIONS -->', '').trim();
       }
 
+      // 處理縮圖 URL
+      let thumbnailUrl = selectedThumbnail
+      if (selectedThumbnail?.startsWith('blob:')) {
+        const thumbnailImage = images.find(img => img.preview === selectedThumbnail)
+        if (thumbnailImage) {
+          const uploadedThumbnail = uploadedImages.find(u => u.id === thumbnailImage.id)
+          if (uploadedThumbnail) {
+            thumbnailUrl = uploadedThumbnail.url
+          }
+        }
+      }
+
       // 更新文章
       const response = await fetch(`/api/articles/${params.slug}`, {
         method: 'PUT',
@@ -337,7 +348,8 @@ export default function EditArticle({ params }: { params: { slug: string } }) {
           categoryName: article.category,
           images: uploadedImages,
           hideImageCaptions: hideImageCaptions,
-          slug: slug.trim()
+          slug: slug.trim(),
+          thumbnail: thumbnailUrl
         }),
       })
 
@@ -619,6 +631,37 @@ export default function EditArticle({ params }: { params: { slug: string } }) {
               ))}
             </div>
           </div>
+
+          {images.length > 0 && (
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                選擇縮圖
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {images.map((image, index) => (
+                  <div 
+                    key={image.id}
+                    className={`relative cursor-pointer border-2 rounded-lg overflow-hidden
+                      ${selectedThumbnail === image.preview ? 'border-primary' : 'border-transparent'}`}
+                    onClick={() => setSelectedThumbnail(image.preview)}
+                  >
+                    <Image
+                      src={image.preview}
+                      alt={`圖片 ${index + 1}`}
+                      width={200}
+                      height={150}
+                      className="object-cover w-full h-24"
+                    />
+                    {selectedThumbnail === image.preview && (
+                      <div className="absolute top-2 right-2 bg-primary text-white p-1 rounded-full">
+                        <Check className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mb-4">
             <div className="flex items-center">

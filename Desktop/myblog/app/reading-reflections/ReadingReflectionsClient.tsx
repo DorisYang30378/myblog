@@ -17,18 +17,20 @@ interface Article {
   id: number
   title: string
   content: string
-  images: string | null
   category: {
     name: string
+    slug: string
   }
   categoryId: number
   createdAt: string
   updatedAt: string
-  likes?: number
   comments?: number
-  isBookmarked?: boolean
+  likes?: number
   isLiked?: boolean
+  isBookmarked?: boolean
+  images: string | null
   slug: string
+  thumbnail?: string | null
 }
 
 interface Props {
@@ -85,7 +87,16 @@ export default function ReadingReflectionsClient({ initialArticles }: Props) {
       }
     }
 
-    fetchArticleStatus()
+    const handleLoginSuccess = () => {
+      console.log('用戶登入成功，重新載入閱讀反思狀態')
+      fetchArticleStatus()
+    }
+    
+    window.addEventListener('user-login-success', handleLoginSuccess)
+    
+    return () => {
+      window.removeEventListener('user-login-success', handleLoginSuccess)
+    }
   }, [])
 
   const handleAction = async (e: React.MouseEvent, action: string, article: Article) => {
@@ -217,42 +228,58 @@ export default function ReadingReflectionsClient({ initialArticles }: Props) {
                           </div>
                         </div>
                         <div className="w-20 h-20 md:w-28 md:h-28 relative flex-shrink-0 mt-8">
-                          {article.images && (
-                            <div className="h-full">
-                              {(() => {
-                                try {
-                                  const images = JSON.parse(article.images)
-                                  if (images && images.length > 0) {
-                                    return (
-                                      <Image
-                                        src={images[0].url}
-                                        alt={getImageAlt(images[0].url)}
-                                        fill
-                                        className="object-cover rounded-lg"
-                                        priority={true}
-                                        loading="eager"
-                                        sizes="(max-width: 768px) 80px, 112px"
-                                        quality={60}
-                                        placeholder="blur"
-                                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDABQODxIPDRQSEBIXFRQdHx4dHRsdHSIeHx8iHiMnJyUmJycjIyYmKCgrKCgmLzAwLi45OTk5OTk5OTk5OTk5OTn/2wBDARUXFyAeIB4dHh4iIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiL/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
-                                        />
-                                      )
-                                    }
-                                  } catch (error) {
-                                    console.error('解析圖片失敗:', error)
-                                  }
+                          {(() => {
+                            if (article.thumbnail) {
+                              return (
+                                <Image
+                                  src={article.thumbnail}
+                                  alt={getImageAlt(article.thumbnail)}
+                                  fill
+                                  className="object-cover rounded-lg"
+                                  priority={true}
+                                  loading="eager"
+                                  sizes="(max-width: 768px) 80px, 112px"
+                                  quality={60}
+                                  placeholder="blur"
+                                  blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDABQODxIPDRQSEBIXFRQdHx4dHRsdHSIeHx8iHiMnJyUmJycjIyYmKCgrKCgmLzAwLi45OTk5OTk5OTk5OTk5OTn/2wBDARUXFyAeIB4dHh4iIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiL/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
+                                />
+                              )
+                            }
+                            
+                            if (article.images) {
+                              try {
+                                const images = JSON.parse(article.images)
+                                if (images && images.length > 0) {
                                   return (
                                     <Image
-                                      src="/placeholder.svg"
-                                      alt="預設圖片"
+                                      src={images[0].url}
+                                      alt={getImageAlt(images[0].url)}
                                       fill
                                       className="object-cover rounded-lg"
                                       priority={true}
+                                      loading="eager"
+                                      sizes="(max-width: 768px) 80px, 112px"
+                                      quality={60}
+                                      placeholder="blur"
+                                      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDABQODxIPDRQSEBIXFRQdHx4dHRsdHSIeHx8iHiMnJyUmJycjIyYmKCgrKCgmLzAwLi45OTk5OTk5OTk5OTk5OTn/2wBDARUXFyAeIB4dHh4iIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiL/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
                                     />
                                   )
-                                })()}
-                            </div>
-                          )}
+                                }
+                              } catch (error) {
+                                console.error('解析圖片失敗:', error)
+                              }
+                            }
+                            
+                            return (
+                              <Image
+                                src="/placeholder.svg"
+                                alt="預設圖片"
+                                fill
+                                className="object-cover rounded-lg"
+                                priority={true}
+                              />
+                            )
+                          })()}
                         </div>
                       </div>
                       <div className="flex items-center gap-3 mt-1 mb-1 pl-3 pr-2 text-[#8B7355] dark:text-gray-400">

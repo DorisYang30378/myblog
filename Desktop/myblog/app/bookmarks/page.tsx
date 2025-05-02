@@ -22,10 +22,12 @@ interface BookmarkedArticle {
   category: string
   excerpt: string
   image?: string
+  thumbnail?: string | null
   likes?: number
   comments?: number
   isLiked?: boolean
   slug: string
+  images?: string
 }
 
 export default function BookmarksPage() {
@@ -90,7 +92,33 @@ export default function BookmarksPage() {
     }
 
     fetchBookmarks()
-  }, [user, router])
+  }, [user, router, session])
+
+  useEffect(() => {
+    const handleLoginSuccess = () => {
+      console.log('用戶登入成功，重新載入收藏狀態')
+      fetch('/api/bookmarks')
+        .then(response => {
+          if (!response.ok) throw new Error('獲取收藏失敗')
+          return response.json()
+        })
+        .then(data => {
+          // 處理數據並設置狀態
+          const cleanedArticles = data.map((article: BookmarkedArticle) => ({
+            ...article,
+            excerpt: article.excerpt.replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+          }))
+          setBookmarkedArticles(cleanedArticles)
+        })
+        .catch(error => console.error('登入後獲取收藏失敗:', error))
+    }
+    
+    window.addEventListener('user-login-success', handleLoginSuccess)
+    
+    return () => {
+      window.removeEventListener('user-login-success', handleLoginSuccess)
+    }
+  }, [])
 
   const handleRemoveBookmark = async (e: React.MouseEvent, article: BookmarkedArticle) => {
     e.preventDefault()
@@ -179,16 +207,16 @@ export default function BookmarksPage() {
           throw new Error('按讚失敗')
         }
 
-        const { liked, totalLikes } = await response.json()
+        const { liked } = await response.json()
         
+        // 更新文章列表中的按讚狀態和數量
         setBookmarkedArticles(prevArticles => 
           prevArticles.map(a => 
-            a.id === article.id 
+            a.id === article.id
               ? {
                   ...a,
-                  isLiked: liked,
-                  likes: totalLikes,
-                  excerpt: a.excerpt
+                  likes: liked ? (a.likes || 0) + 1 : (a.likes || 0) - 1,
+                  isLiked: liked
                 }
               : a
           )
@@ -273,12 +301,53 @@ export default function BookmarksPage() {
                             </div>
                           </div>
                           <div className="w-20 h-20 md:w-28 md:h-28 relative flex-shrink-0 mt-8">
-                            <Image
-                              src={article.image || "/placeholder.svg"}
-                              alt={`Illustration for ${article.title}`}
-                              fill
-                              className="object-cover rounded-lg"
-                            />
+                            {(() => {
+                              // 優先使用縮圖
+                              if (article.thumbnail) {
+                                return (
+                                  <Image
+                                    src={article.thumbnail}
+                                    alt={`Illustration for ${article.title}`}
+                                    fill
+                                    className="object-cover rounded-lg"
+                                    sizes="(max-width: 768px) 80px, 112px"
+                                    quality={60}
+                                  />
+                                )
+                              }
+                              
+                              // 如果沒有縮圖，嘗試解析 images
+                              if (article.images) {
+                                try {
+                                  const images = JSON.parse(article.images)
+                                  if (images && images.length > 0) {
+                                    return (
+                                      <Image
+                                        src={images[0].url}
+                                        alt={`Illustration for ${article.title}`}
+                                        fill
+                                        className="object-cover rounded-lg"
+                                        sizes="(max-width: 768px) 80px, 112px"
+                                        quality={60}
+                                      />
+                                    )
+                                  }
+                                } catch (error) {
+                                  console.error('解析圖片失敗:', error)
+                                }
+                              }
+                              
+                              // 如果都沒有，顯示預設圖片
+                              return (
+                                <Image
+                                  src="/placeholder.svg"
+                                  alt={`Illustration for ${article.title}`}
+                                  fill
+                                  className="object-cover rounded-lg"
+                                  sizes="(max-width: 768px) 80px, 112px"
+                                />
+                              )
+                            })()}
                           </div>
                         </div>
                         <div className="flex items-center gap-3 mt-1 mb-1 pl-3 pr-2 text-[#8B7355] dark:text-gray-400">

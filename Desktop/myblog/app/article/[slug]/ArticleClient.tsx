@@ -42,6 +42,8 @@ interface Article {
   }
   isLiked: boolean
   isBookmarked: boolean
+  images?: string
+  thumbnail?: string | null
 }
 
 interface ArticleClientProps {
@@ -380,6 +382,44 @@ const ArticleActions = ({
     checkLikeStatus()
   }, [articleSlug, session])
 
+  // 在 ArticleActions 組件中添加登入事件監聽器
+  useEffect(() => {
+    const fetchStatus = async () => {
+      if (!session?.user) return;
+      
+      try {
+        // 獲取按讚狀態
+        const likeResponse = await fetch(`/api/articles/${articleSlug}/like`);
+        const likeData = await likeResponse.json();
+        setIsLiked(likeData.liked);
+        setTotalLikes(likeData.totalLikes);
+        
+        // 獲取收藏狀態
+        const bookmarkResponse = await fetch(`/api/articles/${articleSlug}/bookmark`);
+        const bookmarkData = await bookmarkResponse.json();
+        setIsBookmarked(bookmarkData.bookmarked);
+      } catch (error) {
+        console.error('獲取文章狀態失敗:', error);
+      }
+    };
+
+    // 登入成功時刷新狀態
+    const handleLoginSuccess = () => {
+      console.log('用戶登入成功，重新載入文章狀態');
+      fetchStatus();
+    };
+    
+    // 初始載入時獲取狀態
+    fetchStatus();
+    
+    // 添加事件監聽器
+    window.addEventListener('user-login-success', handleLoginSuccess);
+    
+    return () => {
+      window.removeEventListener('user-login-success', handleLoginSuccess);
+    };
+  }, [session, articleSlug]);
+
   return (
     <>
       <div className={`flex items-center gap-0 md:gap-1.5 h-[40px] ${className}`}>
@@ -516,7 +556,9 @@ export default function ArticleClient({ params }: ArticleClientProps) {
             likes: totalLikes || 0
           },
           isLiked: liked,
-          isBookmarked: bookmarked
+          isBookmarked: bookmarked,
+          images: data.images,
+          thumbnail: data.thumbnail
         })
       } catch (error) {
         console.error('獲取文章失敗:', error)

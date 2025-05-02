@@ -1,7 +1,7 @@
 import { Metadata } from "next"
 import prisma from "@/lib/prisma"
 import { CategoryProvider } from '@/app/contexts/CategoryContext'
-import CategoryClient from './CategoryClient'
+import  CategoryClient  from './CategoryClient'
 
 interface CategoryPageProps {
   params: {
@@ -14,7 +14,7 @@ export default async function CategoryPage({ params }: { params: { slug: string 
   console.log('1. URL id:', params.slug)
 
   // 2. 查詢資料庫
-  const category = await prisma.category.findFirst({
+  const category = await prisma.category.findUnique({
     where: {
       slug: params.slug
     }
@@ -22,7 +22,7 @@ export default async function CategoryPage({ params }: { params: { slug: string 
   console.log('Category data from database:', category)
 
   if (!category) {
-    return <div>分類不存在</div>
+    return <div>找不到此分類</div>
   }
 
   return (

@@ -6,6 +6,18 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+      {
+        protocol: 'https',
+        hostname: 'curioushammy.com',
+      },
+      {
+        protocol: 'https',
         hostname: '*.zeabur.app',
         pathname: '/uploads/**',
       },
@@ -20,7 +32,6 @@ const nextConfig = {
         pathname: '/**',
       }
     ],
-    domains: ['lh3.googleusercontent.com', 'localhost', 'curioushammy.com'],
   },
   compress: true,
   poweredByHeader: false,
@@ -34,23 +45,33 @@ const nextConfig = {
       },
     ]
   },
-  // 添加以下配置來禁用頁面快取
+  // 修改緩存策略，為圖片添加緩存，減少重複請求
   headers: async () => {
     return [
       {
-        source: '/:path*',
+        source: '/uploads/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400'  // 圖片緩存一天
+          }
+        ]
+      },
+      {
+        source: '/_next/image/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400'  // Next.js 圖片緩存一天
+          }
+        ]
+      },
+      {
+        source: '/((?!uploads|_next/image).*)',
         headers: [
           {
             key: 'Cache-Control',
             value: 'no-store, max-age=0, must-revalidate'
-          },
-          {
-            key: 'Pragma',
-            value: 'no-cache'
-          },
-          {
-            key: 'Expires',
-            value: '0'
           }
         ]
       }

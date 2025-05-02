@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth'
 import prisma from '@/lib/prisma'
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 
 // 獲取單篇文章
 export async function GET(
@@ -72,7 +73,38 @@ export async function PUT(
 ) {
   try {
     const body = await request.json()
-    const { title, content, categoryName, images, slug: newSlug } = body  // 重命名為 newSlug 避免混淆
+    const { title, content, categoryName, images, hideImageCaptions, slug, thumbnail } = body
+
+    // 處理上傳的圖片資料
+    let processedImages = null
+    let processedThumbnail = null
+    if (images && images.length > 0) {
+      try {
+        processedImages = images.map((img: UploadedImage) => {
+          if (!img?.id || !img?.url) {
+            throw new Error(`圖片資料格式不正確: ${JSON.stringify(img)}`)
+          }
+          
+          // 確保圖片路徑使用 webp 格式
+          const url = img.url.replace(/\.(jpg|jpeg|png|gif)$/i, '.webp')
+          
+          return {
+            id: img.id,
+            url: url
+          }
+        })
+
+        // 處理縮圖
+        if (thumbnail) {
+          processedThumbnail = thumbnail.replace(/\.(jpg|jpeg|png|gif)$/i, '.webp')
+        }
+      } catch (imgError) {
+        return NextResponse.json(
+          { error: "處理圖片資料時發生錯誤" },
+          { status: 400 }
+        )
+      }
+    }
 
     // 驗證必要欄位
     if (!title?.trim() || !content?.trim() || !categoryName?.trim()) {
@@ -83,7 +115,7 @@ export async function PUT(
     }
     
     // 验证 slug
-    if (!newSlug?.trim()) {
+    if (!slug?.trim()) {
       return NextResponse.json(
         { error: "文章網址不能為空" },
         { status: 400 }
@@ -91,7 +123,7 @@ export async function PUT(
     }
     
     // 验证 slug 格式
-    if (!/^[a-z0-9\u4e00-\u9fa5-]+$/.test(newSlug)) {
+    if (!/^[a-z0-9\u4e00-\u9fa5-]+$/.test(slug)) {
       return NextResponse.json(
         { error: "無效的網址格式，只能包含小寫字母、數字、中文和連字符" },
         { status: 400 }
@@ -113,7 +145,7 @@ export async function PUT(
     // 检查 slug 是否已被其他文章使用
     const existingArticle = await prisma.article.findFirst({
       where: {
-        slug: newSlug.trim(),
+        slug: slug.trim(),
         id: { not: currentArticle.id }
       }
     });
@@ -123,12 +155,6 @@ export async function PUT(
         { error: "此網址已被其他文章使用" },
         { status: 400 }
       )
-    }
-
-    // 處理圖片數據
-    let processedImages = null
-    if (images && Array.isArray(images)) {
-      processedImages = JSON.stringify(images)
     }
 
     // 獲取或創建分類
@@ -148,12 +174,16 @@ export async function PUT(
         title: title.trim(),
         content: content.trim(),
         categoryId: category.id,
-        images: processedImages,
-        slug: newSlug.trim(),
+        images: processedImages ? JSON.stringify(processedImages) : null,
+        slug: slug.trim(),
+        thumbnail: processedThumbnail,
         updatedAt: new Date()
       }
     })
 
+    // 更新成功後重新生成首頁
+    revalidatePath('/')
+    
     return NextResponse.json(article)
   } catch (error) {
     console.error('更新文章失敗:', error)
@@ -208,6 +238,10 @@ export async function DELETE(
     })
 
     console.log('刪除成功:', result)
+
+    // 刪除成功後重新生成首頁
+    revalidatePath('/')
+    
     return NextResponse.json({ message: '刪除成功' })
   } catch (error) {
     console.error('Delete article error:', error)

@@ -1,22 +1,23 @@
 import { NextResponse } from 'next/server'
-import { readFile } from 'fs/promises'
-import path from 'path'
 
 export async function GET(
   request: Request,
   { params }: { params: { path: string[] } }
 ) {
   try {
-    // 修改這裡，添加前導斜線
-    const filePath = path.join('/data/uploads', ...params.path)
-    console.log('嘗試讀取文件:', filePath) // 添加日誌
+    // 使用原來的文件路徑處理邏輯，但不使用 path 模塊
+    const filePath = '/data/uploads/' + params.path.join('/')
     
     try {
-      const fileBuffer = await readFile(filePath)
+      // 使用 Node.js 原生 fs 而不是 fs/promises
+      const fs = require('fs')
+      const fileBuffer = fs.readFileSync(filePath)
       
-      // 設置正確的 Content-Type
-      const ext = path.extname(filePath).toLowerCase()
-      const mimeTypes: { [key: string]: string } = {
+      // 獲取文件擴展名，不使用 path 模塊
+      const filename = filePath.split('/').pop() || ''
+      const ext = filename.includes('.') ? '.' + filename.split('.').pop()?.toLowerCase() : ''
+      
+      const mimeTypes = {
         '.png': 'image/png',
         '.jpg': 'image/jpeg',
         '.jpeg': 'image/jpeg',
@@ -26,10 +27,9 @@ export async function GET(
 
       return new NextResponse(fileBuffer, {
         headers: {
-          'Content-Type': mimeTypes[ext] || 'application/octet-stream',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
+          'Content-Type': mimeTypes[ext as keyof typeof mimeTypes] || 'application/octet-stream',
+          'Cache-Control': 'public, max-age=31536000, immutable', // 一年緩存
+          'X-Content-Type-Options': 'nosniff',
         },
       })
     } catch (e) {

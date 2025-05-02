@@ -36,6 +36,8 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600&display=swap"
           rel="stylesheet"
         />
+        <link rel="preconnect" href="https://curioushammy.com" />
+        <link rel="dns-prefetch" href="https://curioushammy.com" />
       </head>
       <body suppressHydrationWarning className="font-sans">
         <GoogleAnalytics />

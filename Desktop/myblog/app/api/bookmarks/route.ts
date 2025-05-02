@@ -59,6 +59,7 @@ export async function GET() {
         category: bookmark.article.category.name,
         excerpt: bookmark.article.content.substring(0, 100) + "...",
         image: imageUrl,
+        thumbnail: bookmark.article.thumbnail,
         likes: bookmark.article._count.likes,
         comments: bookmark.article._count.comments
       }

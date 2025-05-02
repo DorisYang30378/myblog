@@ -49,32 +49,48 @@ export default function SearchPage() {
         const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
         const data = await response.json()
         
-        // 直接使用 data.articles，不需要再包一層
         const articlesWithStatus = await Promise.all(
           data.articles.map(async (article: Article) => {
-            const [bookmarkRes, likeRes, commentsRes] = await Promise.all([
-              fetch(`/api/articles/${article.slug}/bookmark`),
-              fetch(`/api/articles/${article.slug}/like`),
-              fetch(`/api/comments/${article.slug}`)
-            ])
+            try {
+              const [bookmarkRes, likeRes, commentsRes] = await Promise.all([
+                fetch(`/api/articles/${article.slug}/bookmark`),
+                fetch(`/api/articles/${article.slug}/like`),
+                fetch(`/api/comments/${article.id}`)
+              ])
 
-            const { bookmarked } = await bookmarkRes.json()
-            const { liked, totalLikes } = await likeRes.json()
-            const comments = await commentsRes.json()
-            const commentCount = comments.reduce((acc: number, comment: any) => 
-              acc + 1 + (comment.replies?.length || 0), 0)
+              const { bookmarked } = await bookmarkRes.json()
+              const { liked, totalLikes } = await likeRes.json()
+              
+              let commentCount = 0
+              if (commentsRes.ok) {
+                const comments = await commentsRes.json()
+                if (Array.isArray(comments)) {
+                  commentCount = comments.reduce((acc: number, comment: any) => 
+                    acc + 1 + (Array.isArray(comment.replies) ? comment.replies.length : 0), 0)
+                }
+              }
 
-            return {
-              ...article,
-              isBookmarked: bookmarked,
-              isLiked: liked,
-              likes: totalLikes || 0,
-              comments: commentCount
+              return {
+                ...article,
+                isBookmarked: bookmarked,
+                isLiked: liked,
+                likes: totalLikes || 0,
+                comments: commentCount
+              }
+            } catch (error) {
+              console.error(`處理文章 ${article.slug} 狀態失敗:`, error)
+              return {
+                ...article,
+                isBookmarked: false,
+                isLiked: false,
+                likes: 0,
+                comments: 0
+              }
             }
           })
         )
 
-        console.log('搜尋結果:', articlesWithStatus) // 添加這行來檢查數據
+        console.log('搜尋結果:', articlesWithStatus)
         setArticles(articlesWithStatus)
       } catch (error) {
         console.error("搜尋失敗:", error)
@@ -83,7 +99,16 @@ export default function SearchPage() {
       }
     }
 
-    fetchResults()
+    const handleLoginSuccess = () => {
+      console.log('用戶登入成功，重新載入搜索結果');
+      fetchResults();
+    };
+    
+    window.addEventListener('user-login-success', handleLoginSuccess);
+    
+    return () => {
+      window.removeEventListener('user-login-success', handleLoginSuccess);
+    };
   }, [query])
 
   const handleAction = async (e: React.MouseEvent, action: string, article: Article) => {

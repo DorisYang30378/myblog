@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, PlusCircle, Eye, Edit, Trash2, Pencil } from "lucide-react"
+import { Upload, PlusCircle, Eye, Edit, Trash2, Pencil, Check } from "lucide-react"
 import PageLayout from "../components/PageLayout"
 import ReactMarkdown, { Components } from "react-markdown"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
@@ -55,6 +55,7 @@ export default function UploadPage() {
   const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<{id: number, name: string, slug: string} | null>(null)
   const [hideImageCaptions, setHideImageCaptions] = useState(false)
+  const [selectedThumbnail, setSelectedThumbnail] = useState<string | null>(null)
 
   // 清理預覽 URL
   useEffect(() => {
@@ -127,19 +128,16 @@ export default function UploadPage() {
       const start = textarea.selectionStart
       const end = textarea.selectionEnd
       
-      // 使用原始檔名作為 alt 文字，但確保路徑處理正確
       let imageUrl = image.preview
       
-      // 如果是 blob URL，直接使用
       if (!imageUrl.startsWith('blob:')) {
-        // 確保不會重複添加 /uploads/ 前綴
         if (!imageUrl.startsWith('/uploads/')) {
           imageUrl = `/uploads/${imageUrl}`
         }
       }
       
-      const imageMarkdown = `<img src="${imageUrl}" alt="${fileName}" />\n`
-      console.log('插入的圖片標籤:', imageMarkdown)  // 添加日誌
+      // 添加最大高度限制
+      const imageMarkdown = `<img src="${imageUrl}" alt="${fileName}" style="max-height: 400px; width: auto;" />\n`
       
       const newContent = content.substring(0, start) + imageMarkdown + content.substring(end)
       setContent(newContent)
@@ -194,6 +192,18 @@ export default function UploadPage() {
         }
       }
 
+      // 在上傳圖片後，找到對應的縮圖 URL
+      let thumbnailUrl = null
+      if (selectedThumbnail) {
+        const thumbnailImage = images.find(img => img.preview === selectedThumbnail)
+        if (thumbnailImage) {
+          const uploadedThumbnail = uploadedImages.find(u => u.id === thumbnailImage.id)
+          if (uploadedThumbnail) {
+            thumbnailUrl = uploadedThumbnail.url
+          }
+        }
+      }
+
       // 更新內容中的圖片引用
       let updatedContent = content
       for (const img of images) {
@@ -226,6 +236,7 @@ export default function UploadPage() {
           content: finalContent,
           category,
           images: uploadedImages,
+          thumbnail: thumbnailUrl,
           slug: slug.trim() || generateSlug(title.trim())
         })
       })
@@ -242,7 +253,7 @@ export default function UploadPage() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [title, content, category, images, slug, isSubmitting, hideImageCaptions])
+  }, [title, content, category, images, selectedThumbnail, slug, isSubmitting, hideImageCaptions])
 
   const togglePreviewMode = () => {
     setIsPreviewMode(!isPreviewMode)
@@ -535,64 +546,86 @@ export default function UploadPage() {
             </div>
           </div>
 
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <label htmlFor="image" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                上傳圖片
-              </label>
-              <div className="flex items-center">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  ref={imageInputRef}
-                  className="hidden"
-                  multiple
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => imageInputRef.current?.click()}
-                  className="flex items-center gap-2"
-                >
-                  <PlusCircle size={16} />
-                  新增圖片
-                </Button>
-              </div>
+          <div className="mb-4">
+            <Label>文章圖片</Label>
+            <div className="mt-2">
+              <Input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageUpload}
+                className="mt-2"
+              />
             </div>
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {images.map((img) => (
-                <div key={img.id} className="relative group">
-                  <Image
-                    src={img.preview || "/placeholder.svg"}
-                    alt="Preview"
-                    width={100}
-                    height={100}
-                    className="object-cover rounded-md w-full h-24"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => insertImageToContent(img.id)}
-                      className="text-white mr-2"
-                    >
-                      插入
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeImage(img.id)}
-                      className="text-white"
-                    >
-                      刪除
-                    </Button>
+            
+            {/* 添加圖片預覽和操作按鈕 */}
+            {images.length > 0 && (
+              <>
+                <div className="grid grid-cols-3 gap-4 mt-4">
+                  {images.map((image, index) => (
+                    <div key={image.id} className="relative group">
+                      <Image
+                        src={image.preview}
+                        alt={`圖片 ${index + 1}`}
+                        width={200}
+                        height={150}
+                        className="object-cover w-full h-[150px] rounded-lg"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => insertImageToContent(image.id)}
+                          className="bg-white/80 hover:bg-white"
+                        >
+                          <PlusCircle className="w-4 h-4 mr-1" />
+                          插入
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => removeImage(image.id)}
+                          className="bg-red-500/80 hover:bg-red-500"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          刪除
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 選擇縮圖功能 */}
+                <div className="mt-6">
+                  <Label>選擇縮圖</Label>
+                  <div className="grid grid-cols-3 gap-4 mt-2">
+                    {images.map((image, index) => (
+                      <div 
+                        key={image.id}
+                        className={`relative cursor-pointer border-2 rounded-lg overflow-hidden
+                          ${selectedThumbnail === image.preview ? 'border-primary' : 'border-transparent'}`}
+                        onClick={() => setSelectedThumbnail(image.preview)}
+                      >
+                        <Image
+                          src={image.preview}
+                          alt={`圖片 ${index + 1}`}
+                          width={200}
+                          height={150}
+                          className="object-cover w-full h-[150px]"
+                        />
+                        {selectedThumbnail === image.preview && (
+                          <div className="absolute top-2 right-2 bg-primary text-white p-1 rounded-full">
+                            <Check className="w-4 h-4" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </div>
 
           <div>
